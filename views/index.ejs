@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IAA Cars</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #f5f5f5; }
+    h1 { margin: 0 0 0.5rem; }
+    .error { color: #c00; padding: 0.5rem; background: #fee; border-radius: 4px; margin-bottom: 1rem; }
+    .filters {
+      background: #fff;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 1rem 1.5rem;
+    }
+    .filters .filter-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .filters .filter-group label { font-weight: 600; font-size: 0.9rem; }
+    .filters .makes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.25rem 1rem; max-height: 12rem; overflow-y: auto; }
+    .filters .makes-grid label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: normal; white-space: nowrap; }
+    .filters input[type="checkbox"] { width: 1rem; height: 1rem; }
+    .filters input[type="number"], .filters input[type="date"], .filters select {
+      padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; min-width: 8rem;
+    }
+    .filters .year-range { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .filters .year-range select { min-width: 6.5rem; }
+    .filters .year-range-sep { color: #666; font-size: 0.9rem; }
+    .filters .locations-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+    .filters .locations-row label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: normal; white-space: nowrap; }
+    .btn-run { padding: 0.5rem 1.25rem; background: #333; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem; }
+    .btn-run:hover { background: #555; }
+    .btn-run:disabled { background: #999; cursor: not-allowed; }
+    .count { color: #666; margin-bottom: 0.5rem; }
+    .count strong { color: #333; }
+    table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #333; color: #fff; font-weight: 600; }
+    tr:hover { background: #f9f9f9; }
+    img.grid-img { width: 120px; height: 88px; object-fit: cover; border-radius: 4px; }
+    .empty { padding: 2rem; text-align: center; color: #666; }
+  </style>
+</head>
+<body>
+  <h1 id="page-title">IAA Cars</h1>
+  <div id="error-wrap"></div>
+
+  <div class="filters" id="filter-panel">
+    <div class="filter-group">
+      <label>Year range</label>
+      <div class="year-range">
+        <select id="filter-year-from">
+          <option value="">From (any)</option>
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+          <option value="2022">2022</option>
+          <option value="2021">2021</option>
+          <option value="2020">2020</option>
+          <option value="2019">2019</option>
+          <option value="2018">2018</option>
+          <option value="2017">2017</option>
+          <option value="2016">2016</option>
+          <option value="2015">2015</option>
+        </select>
+        <span class="year-range-sep">to</span>
+        <select id="filter-year-to">
+          <option value="">To (any)</option>
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+          <option value="2022">2022</option>
+          <option value="2021">2021</option>
+          <option value="2020">2020</option>
+          <option value="2019">2019</option>
+          <option value="2018">2018</option>
+          <option value="2017">2017</option>
+          <option value="2016">2016</option>
+          <option value="2015">2015</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Location (applied when you Run – left filter on IAA)</label>
+      <div class="locations-row">
+        <label><input type="checkbox" name="location" value="Ottawa" checked> Ottawa</label>
+        <label><input type="checkbox" name="location" value="Toronto" checked> Toronto</label>
+        <label><input type="checkbox" name="location" value="Toronto North" checked> Toronto North</label>
+        <label><input type="checkbox" name="location" value="Toronto West" checked> Toronto West</label>
+        <label><input type="checkbox" name="location" value="Montreal East"> Montreal East</label>
+        <label><input type="checkbox" name="location" value="Montreal West"> Montreal West</label>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Make (leave all unchecked for any)</label>
+      <div class="makes-grid" id="makes-container">
+        <label><input type="checkbox" name="make" value="Acura"> Acura</label>
+        <label><input type="checkbox" name="make" value="Alfa Romeo"> Alfa Romeo</label>
+        <label><input type="checkbox" name="make" value="Audi"> Audi</label>
+        <label><input type="checkbox" name="make" value="BMW"> BMW</label>
+        <label><input type="checkbox" name="make" value="Buick"> Buick</label>
+        <label><input type="checkbox" name="make" value="Cadillac"> Cadillac</label>
+        <label><input type="checkbox" name="make" value="Chevrolet"> Chevrolet</label>
+        <label><input type="checkbox" name="make" value="Chrysler"> Chrysler</label>
+        <label><input type="checkbox" name="make" value="Dodge"> Dodge</label>
+        <label><input type="checkbox" name="make" value="Fiat"> Fiat</label>
+        <label><input type="checkbox" name="make" value="Ford"> Ford</label>
+        <label><input type="checkbox" name="make" value="Genesis"> Genesis</label>
+        <label><input type="checkbox" name="make" value="GMC"> GMC</label>
+        <label><input type="checkbox" name="make" value="Honda"> Honda</label>
+        <label><input type="checkbox" name="make" value="Hyundai"> Hyundai</label>
+        <label><input type="checkbox" name="make" value="Infiniti"> Infiniti</label>
+        <label><input type="checkbox" name="make" value="Jaguar"> Jaguar</label>
+        <label><input type="checkbox" name="make" value="Jeep"> Jeep</label>
+        <label><input type="checkbox" name="make" value="Kia"> Kia</label>
+        <label><input type="checkbox" name="make" value="Land Rover"> Land Rover</label>
+        <label><input type="checkbox" name="make" value="Lexus"> Lexus</label>
+        <label><input type="checkbox" name="make" value="Lincoln"> Lincoln</label>
+        <label><input type="checkbox" name="make" value="Mazda"> Mazda</label>
+        <label><input type="checkbox" name="make" value="Mercedes-Benz"> Mercedes-Benz</label>
+        <label><input type="checkbox" name="make" value="MINI"> MINI</label>
+        <label><input type="checkbox" name="make" value="Mitsubishi"> Mitsubishi</label>
+        <label><input type="checkbox" name="make" value="Nissan"> Nissan</label>
+        <label><input type="checkbox" name="make" value="Porsche"> Porsche</label>
+        <label><input type="checkbox" name="make" value="Ram"> Ram</label>
+        <label><input type="checkbox" name="make" value="Subaru"> Subaru</label>
+        <label><input type="checkbox" name="make" value="Suzuki"> Suzuki</label>
+        <label><input type="checkbox" name="make" value="Tesla"> Tesla</label>
+        <label><input type="checkbox" name="make" value="Toyota"> Toyota</label>
+        <label><input type="checkbox" name="make" value="Volkswagen"> Volkswagen</label>
+        <label><input type="checkbox" name="make" value="Volvo"> Volvo</label>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label for="filter-max-km">Max KM</label>
+      <input type="number" id="filter-max-km" placeholder="e.g. 100000" min="0" step="1000">
+    </div>
+    <div class="filter-group">
+      <label for="filter-auction-from">Auction from date</label>
+      <input type="date" id="filter-auction-from" placeholder="Optional">
+    </div>
+    <div class="filter-group" style="align-self: flex-end;">
+      <button type="button" class="btn-run" id="btn-run">Run</button>
+    </div>
+  </div>
+
+  <div class="count" id="count-line">—</div>
+  <div id="table-wrap">
+    <div class="empty">Set filters and click Run to load vehicles.</div>
+  </div>
+
+  <script>
+    (function () {
+      var countLine = document.getElementById('count-line');
+      var tableWrap = document.getElementById('table-wrap');
+      var errorWrap = document.getElementById('error-wrap');
+      var btnRun = document.getElementById('btn-run');
+      var cars = [];
+
+      function showError(msg) {
+        errorWrap.innerHTML = msg ? '<div class="error">' + escapeHtml(msg) + '</div>' : '';
+      }
+
+      function escapeHtml(s) {
+        if (s == null || s === '') return '';
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function parseOdometerKm(str) {
+        if (!str || typeof str !== 'string') return NaN;
+        var num = parseFloat(str.replace(/[^\d.]/g, ''));
+        if (str.toLowerCase().indexOf('mi') !== -1) num = num * 1.60934;
+        return Number.isFinite(num) ? num : NaN;
+      }
+
+      function parseAuctionDate(s) {
+        if (!s || typeof s !== 'string') return NaN;
+        var d = new Date(s.trim());
+        return isNaN(d.getTime()) ? NaN : d.getTime();
+      }
+
+      function slugify(s) {
+        if (!s || typeof s !== 'string') return '';
+        return s.trim().toLowerCase().replace(/\s+/g, '-').replace(/-+/g, '-');
+      }
+      function buildAutoTraderUrl(car) {
+        var make = (car.make || '').trim();
+        var model = (car.model || '').trim();
+        var year = (car.year || '').trim();
+        if (!make || !model || !year) return '';
+        var makeSlug = slugify(make);
+        var modelFirst = model.split(/\s+/)[0] || model;
+        var modelSlug = slugify(modelFirst);
+        var base = 'https://www.autotrader.ca/cars/' + encodeURIComponent(makeSlug) + '/' + encodeURIComponent(modelSlug) + '/' + encodeURIComponent(year) + '/';
+        var params = 'rcp=15&rcs=0&srt=39&prx=-1&trans=Automatic&hprc=True&wcp=True&inMarket=advancedSearch';
+        return base + '?' + params;
+      }
+      function buildKijijiUrl(car) {
+        var make = (car.make || '').trim();
+        var model = (car.model || '').trim();
+        var year = (car.year || '').trim();
+        var slug = model ? slugify(model.split(/\s+/)[0] || model) : (make ? slugify(make) : '');
+        if (!slug) return '';
+        var fullTitle = [year, make, model].filter(Boolean).join(' ');
+        var url = 'https://www.kijiji.ca/b-cars-vehicles/canada/' + encodeURIComponent(slug) + '/k0c27l0?view=list';
+        if (fullTitle) url += '&q=' + encodeURIComponent(fullTitle);
+        return url;
+      }
+      function getSelectedMakes() {
+        var checked = document.querySelectorAll('#makes-container input[name="make"]:checked');
+        var arr = [];
+        for (var i = 0; i < checked.length; i++) {
+          var v = (checked[i].value || '').trim();
+          if (v) arr.push(v);
+        }
+        return arr;
+      }
+
+      function getSelectedLocations() {
+        var checked = document.querySelectorAll('input[name="location"]:checked');
+        var arr = [];
+        for (var i = 0; i < checked.length; i++) arr.push((checked[i].value || '').trim());
+        return arr;
+      }
+
+      function applyFilters(data) {
+        var yearFromEl = document.getElementById('filter-year-from');
+        var yearToEl = document.getElementById('filter-year-to');
+        var yearFrom = (yearFromEl && yearFromEl.value) ? yearFromEl.value.trim() : '';
+        var yearTo = (yearToEl && yearToEl.value) ? yearToEl.value.trim() : '';
+        var makes = getSelectedMakes();
+        var maxKmEl = document.getElementById('filter-max-km');
+        var maxKmVal = maxKmEl && maxKmEl.value ? maxKmEl.value.trim() : '';
+        var maxKm = maxKmVal === '' ? null : parseFloat(maxKmVal);
+        var auctionFromEl = document.getElementById('filter-auction-from');
+        var auctionFromVal = auctionFromEl && auctionFromEl.value ? auctionFromEl.value.trim() : '';
+        var auctionFromTs = auctionFromVal ? (new Date(auctionFromVal)).getTime() : null;
+        if (auctionFromVal && isNaN(auctionFromTs)) auctionFromTs = null;
+
+        var out = data.slice();
+        if (yearFrom) out = out.filter(function (c) { var y = (c.year || '').trim(); return y && y >= yearFrom; });
+        if (yearTo) out = out.filter(function (c) { var y = (c.year || '').trim(); return y && y <= yearTo; });
+        if (makes.length > 0) {
+          var makeSet = {};
+          makes.forEach(function (m) { makeSet[m.toLowerCase()] = true; });
+          out = out.filter(function (c) { return makeSet[(c.make || '').trim().toLowerCase()]; });
+        }
+        if (maxKm != null && Number.isFinite(maxKm)) {
+          out = out.filter(function (c) {
+            var km = parseOdometerKm(c.odometer);
+            return !isNaN(km) && km <= maxKm;
+          });
+        }
+        if (auctionFromTs != null) {
+          out = out.filter(function (c) {
+            var ts = parseAuctionDate(c.auctionDateTime);
+            return !isNaN(ts) && ts >= auctionFromTs;
+          });
+        }
+        out.sort(function (a, b) {
+          var ta = parseAuctionDate(a.auctionDateTime);
+          var tb = parseAuctionDate(b.auctionDateTime);
+          return (isNaN(ta) ? Infinity : ta) - (isNaN(tb) ? Infinity : tb);
+        });
+        return out;
+      }
+
+      function renderTable(filtered, selectedMakes) {
+        var titleSuffix = (selectedMakes && selectedMakes.length > 0) ? ' - ' + selectedMakes.join(', ') : '';
+        var titleText = 'IAA Cars' + titleSuffix;
+        var titleEl = document.getElementById('page-title');
+        if (titleEl) titleEl.textContent = titleText;
+        document.title = titleText;
+        countLine.innerHTML = '<strong>' + filtered.length + '</strong> of ' + cars.length + ' vehicles';
+        if (filtered.length === 0) {
+          tableWrap.innerHTML = '<div class="empty">No vehicles match the current filters.</div>';
+          return;
+        }
+        var html = '<table><thead><tr>' +
+          '<th>Image</th><th>Vehicle</th><th>Location</th><th>Damage</th><th>Damage Est.</th><th>Odometer</th><th>Lane / Run</th><th>Auction Date / Time</th><th>Market price check</th><th>Kenny U-Pull</th>' +
+          '</tr></thead><tbody>';
+        filtered.forEach(function (car) {
+          var img = car.imageUrl
+            ? (car.vehicleDetailsUrl
+                ? '<a href="' + escapeHtml(car.vehicleDetailsUrl) + '" target="_blank" rel="noopener noreferrer"><img class="grid-img" src="' + escapeHtml(car.imageUrl) + '" alt=""></a>'
+                : '<img class="grid-img" src="' + escapeHtml(car.imageUrl) + '" alt="">')
+            : '—';
+          var vehicle = [car.year, car.make, car.model].filter(Boolean).join(' ');
+          var vehicleCell = car.vehicleDetailsUrl
+            ? '<a href="' + escapeHtml(car.vehicleDetailsUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(vehicle) + '</a>'
+            : escapeHtml(vehicle);
+          var kennyCell = (car.kennyUpullLink)
+            ? '<a href="' + escapeHtml(car.kennyUpullLink) + '" target="_blank" rel="noopener noreferrer">Parts at Kenny</a>'
+            : '—';
+          var marketQuery = [car.year, car.make, car.model].filter(Boolean).join(' ');
+          var kijijiUrl = buildKijijiUrl(car);
+          var autoTraderUrl = buildAutoTraderUrl(car);
+          var marketCell = marketQuery
+            ? (kijijiUrl
+                ? '<a href="' + escapeHtml(kijijiUrl) + '" target="_blank" rel="noopener noreferrer">Kijiji</a>'
+                : '<a href="https://www.kijiji.ca/b-cars-vehicles/canada/c27l0?q=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">Kijiji</a>')
+            + ' &middot; '
+            + '<a href="https://www.facebook.com/marketplace/search/?query=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">FB Market</a>'
+            + ' &middot; '
+            + (autoTraderUrl
+                ? '<a href="' + escapeHtml(autoTraderUrl) + '" target="_blank" rel="noopener noreferrer">AutoTrader</a>'
+                : '<a href="https://www.autotrader.ca/cars/?search=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">AutoTrader</a>')
+            : '—';
+          html += '<tr>' +
+            '<td>' + img + '</td>' +
+            '<td>' + vehicleCell + '</td>' +
+            '<td>' + escapeHtml(car.branch || car.location || '') + '</td>' +
+            '<td>' + escapeHtml(car.damage) + '</td>' +
+            '<td>' + escapeHtml(car.damageEstimate) + '</td>' +
+            '<td>' + escapeHtml(car.odometer) + '</td>' +
+            '<td>' + escapeHtml(car.laneRun || '') + '</td>' +
+            '<td>' + escapeHtml(car.auctionDateTime || '') + '</td>' +
+            '<td>' + marketCell + '</td>' +
+            '<td>' + kennyCell + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        tableWrap.innerHTML = html;
+      }
+
+      function run() {
+        showError('');
+        var locations = getSelectedLocations();
+        var makes = getSelectedMakes();
+        var url = '/api/cars?locations=' + encodeURIComponent((locations && locations.length) ? locations.join(',') : '');
+        if (makes.length > 0) url += '&makes=' + encodeURIComponent(makes.join(','));
+        btnRun.disabled = true;
+        tableWrap.innerHTML = '<div class="empty">Loading… (scraping IAA, this may take a minute)</div>';
+        fetch(url)
+          .then(function (res) {
+            if (!res.ok) throw new Error('Request failed: ' + res.status);
+            return res.json();
+          })
+          .then(function (data) {
+            cars = data.cars || [];
+            var filtered = applyFilters(cars);
+            renderTable(filtered, makes);
+          })
+          .catch(function (err) {
+            showError(err.message || 'Failed to load vehicles.');
+            tableWrap.innerHTML = '<div class="empty">Set filters and click Run to try again.</div>';
+            countLine.textContent = '—';
+          })
+          .finally(function () {
+            btnRun.disabled = false;
+          });
+      }
+
+      btnRun.addEventListener('click', run);
+    })();
+  </script>
+</body>
+</html>
