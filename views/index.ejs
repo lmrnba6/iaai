@@ -6,145 +6,310 @@
   <title>IAA Cars</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #f5f5f5; }
-    h1 { margin: 0 0 0.5rem; }
-    .error { color: #c00; padding: 0.5rem; background: #fee; border-radius: 4px; margin-bottom: 1rem; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 1.25rem; background: #e8ecf1; color: #1a1d21; }
+    h1 { margin: 0 0 0.75rem; font-weight: 700; font-size: 1.5rem; color: #1a1d21; }
+    .error { color: #b91c1c; padding: 0.6rem 0.75rem; background: #fef2f2; border-radius: 6px; margin-bottom: 1rem; border-left: 3px solid #b91c1c; }
     .filters {
       background: #fff;
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       display: flex;
       flex-wrap: wrap;
       align-items: flex-start;
-      gap: 1rem 1.5rem;
+      gap: 1.25rem 2rem;
+      border: 1px solid #e5e7eb;
     }
-    .filters .filter-group { display: flex; flex-direction: column; gap: 0.35rem; }
-    .filters .filter-group label { font-weight: 600; font-size: 0.9rem; }
-    .filters .makes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.25rem 1rem; max-height: 12rem; overflow-y: auto; }
-    .filters .makes-grid label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: normal; white-space: nowrap; }
-    .filters input[type="checkbox"] { width: 1rem; height: 1rem; }
+    .filters .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .filters .filter-group > label:first-child {
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #4b5563;
+      margin-bottom: 0.15rem;
+    }
+    .filters .filter-group .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.35rem 1rem;
+      max-height: 12rem;
+      overflow-y: auto;
+      padding: 0.25rem 0;
+    }
+    .filters .checkbox-grid label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      font-weight: 400;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      padding: 0.2rem 0;
+    }
+    .filters .checkbox-grid label:hover { color: #111; }
+    .filters input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: #2563eb; cursor: pointer; }
+    .multiselect-dropdown { position: relative; min-width: 10rem; }
+    .multiselect-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      padding: 0.5rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px;
+      background: #fff; font-size: 0.9rem; cursor: pointer; min-width: 10rem;
+    }
+    .multiselect-btn:hover { border-color: #9ca3af; }
+    .multiselect-btn::after { content: '▾'; font-size: 0.7rem; opacity: 0.7; }
+    .multiselect-panel {
+      position: absolute; top: 100%; left: 0; margin-top: 2px;
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 14rem; overflow-y: auto;
+      z-index: 100; padding: 0.4rem; min-width: 100%;
+    }
+    .multiselect-panel.hidden { display: none; }
+    .multiselect-panel label { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.4rem; cursor: pointer; font-size: 0.9rem; border-radius: 4px; }
+    .multiselect-panel label:hover { background: #f3f4f6; }
+    .condition-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
+    .condition-badge.run-and-drive { background: #dcfce7; color: #166534; }
+    .condition-badge.start { background: #ffedd5; color: #9a3412; }
+    .condition-badge.stationary { background: #fed7aa; color: #9a3412; }
+        .brand-cell-not-branded { color: #16a34a; font-weight: 600; }
+    .brand-cell-salvage { color: #dc2626; font-weight: 600; }
+    .damage-est-pdf-link { color: #2563eb; text-decoration: underline; cursor: pointer; font-weight: 500; }
+    .damage-est-pdf-link:hover { color: #1d4ed8; }
     .filters input[type="number"], .filters input[type="date"], .filters select {
-      padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; min-width: 8rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      min-width: 8rem;
+      font-size: 0.9rem;
+      background: #fff;
     }
-    .filters .year-range { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-    .filters .year-range select { min-width: 6.5rem; }
-    .filters .year-range-sep { color: #666; font-size: 0.9rem; }
-    .filters .locations-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
-    .filters .locations-row label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: normal; white-space: nowrap; }
-    .btn-run { padding: 0.5rem 1.25rem; background: #333; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem; }
-    .btn-run:hover { background: #555; }
-    .btn-run:disabled { background: #999; cursor: not-allowed; }
-    .count { color: #666; margin-bottom: 0.5rem; }
-    .count strong { color: #333; }
-    table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #333; color: #fff; font-weight: 600; }
-    tr:hover { background: #f9f9f9; }
+    .filters input:focus, .filters select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+    .filters .year-vertical, .filters .engine-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .filters .year-vertical .row, .filters .engine-vertical .row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .filters .year-vertical .row label, .filters .engine-vertical .row label {
+      font-weight: 400;
+      font-size: 0.9rem;
+      text-transform: none;
+      letter-spacing: 0;
+      color: #374151;
+      min-width: 3rem;
+    }
+    .filters .verification-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .filters .verification-col .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      font-weight: 400;
+      font-size: 0.9rem;
+      padding: 0.2rem 0;
+    }
+    .filters .verification-col .check-label:hover { color: #111; }
+    .btn-run {
+      padding: 0.6rem 1.5rem;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+    }
+    .btn-run:hover { background: #1d4ed8; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35); }
+    .btn-run:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
+    .btn-delete-row { width: 1.75rem; height: 1.75rem; padding: 0; border: 1px solid #dc2626; background: #fff; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 1.2rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .btn-delete-row:hover { background: #dc2626; color: #fff; }
+    .count { color: #4b5563; margin-bottom: 0.75rem; font-size: 0.95rem; }
+    .count strong { color: #1a1d21; }
+    table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+    th, td { padding: 0.55rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+    th { background: #1e293b; color: #fff; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    tr:hover { background: #f8fafc; }
     img.grid-img { width: 120px; height: 88px; object-fit: cover; border-radius: 4px; }
+    .kenny-icon { width: 22px; height: 22px; display: inline-block; vertical-align: middle; }
+    ul.market-list { margin: 0; padding-left: 1.25rem; list-style-type: disc; }
+    ul.market-list li { margin: 0.15rem 0; }
+    .kenny-icon-link { text-decoration: none; }
     .empty { padding: 2rem; text-align: center; color: #666; }
+    #warm-loader {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.9); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 9999;
+    }
+    #warm-loader.hidden { display: none; }
+    #warm-loader .spinner {
+      width: 48px; height: 48px; border: 4px solid #e0e0e0; border-top-color: #333;
+      border-radius: 50%; animation: warm-spin 0.9s linear infinite;
+    }
+    #warm-loader .text { margin-top: 1rem; font-size: 1rem; color: #555; }
+    @keyframes warm-spin { to { transform: rotate(360deg); } }
+    .repair-bolt-on { color: #22c55e; font-weight: 600; }
+    .repair-parts-details { display: inline-block; margin-left: 0.35rem; vertical-align: middle; }
+    .repair-parts-details summary { cursor: pointer; font-size: 0.8rem; color: #2563eb; user-select: none; }
+    .repair-parts-details summary:hover { text-decoration: underline; }
+    .repair-parts-list { margin: 0.35rem 0 0; padding-left: 1.25rem; font-size: 0.85rem; color: #475569; max-height: 8rem; overflow-y: auto; }
+    .damage-estimate-mode { margin-top: 0.35rem; margin-left: 1.5rem; font-size: 0.9rem; }
+    .damage-estimate-mode.hidden { display: none; }
+    .radio-inline { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 1rem; cursor: pointer; }
   </style>
 </head>
 <body>
+  <div id="warm-loader" class="hidden">
+    <div class="spinner"></div>
+    <div class="text">Loading vehicles…</div>
+  </div>
   <h1 id="page-title">IAA Cars</h1>
   <div id="error-wrap"></div>
 
   <div class="filters" id="filter-panel">
     <div class="filter-group">
       <label>Year range</label>
-      <div class="year-range">
-        <select id="filter-year-from">
-          <option value="">From (any)</option>
-          <option value="2026">2026</option>
-          <option value="2025">2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-          <option value="2022">2022</option>
-          <option value="2021">2021</option>
-          <option value="2020">2020</option>
-          <option value="2019">2019</option>
-          <option value="2018">2018</option>
-          <option value="2017">2017</option>
-          <option value="2016">2016</option>
-          <option value="2015">2015</option>
-        </select>
-        <span class="year-range-sep">to</span>
-        <select id="filter-year-to">
-          <option value="">To (any)</option>
-          <option value="2026">2026</option>
-          <option value="2025">2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-          <option value="2022">2022</option>
-          <option value="2021">2021</option>
-          <option value="2020">2020</option>
-          <option value="2019">2019</option>
-          <option value="2018">2018</option>
-          <option value="2017">2017</option>
-          <option value="2016">2016</option>
-          <option value="2015">2015</option>
-        </select>
+      <div class="year-vertical">
+        <div class="row">
+          <label for="filter-year-from">From</label>
+          <select id="filter-year-from">
+            <option value="">Any</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="filter-year-to">To</label>
+          <select id="filter-year-to">
+            <option value="">Any</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="filter-group">
-      <label>Location (applied when you Run – left filter on IAA)</label>
-      <div class="locations-row">
-        <label><input type="checkbox" name="location" value="Ottawa" checked> Ottawa</label>
-        <label><input type="checkbox" name="location" value="Toronto" checked> Toronto</label>
-        <label><input type="checkbox" name="location" value="Toronto North" checked> Toronto North</label>
-        <label><input type="checkbox" name="location" value="Toronto West" checked> Toronto West</label>
-        <label><input type="checkbox" name="location" value="Montreal East"> Montreal East</label>
-        <label><input type="checkbox" name="location" value="Montreal West"> Montreal West</label>
+      <label>Location</label>
+      <div class="multiselect-dropdown" id="location-multiselect">
+        <button type="button" class="multiselect-btn" id="location-btn" aria-haspopup="listbox">All locations (6)</button>
+        <div class="multiselect-panel hidden" id="location-panel" role="listbox">
+          <label><input type="checkbox" name="location" value="Ottawa" checked> Ottawa</label>
+          <label><input type="checkbox" name="location" value="Toronto" checked> Toronto</label>
+          <label><input type="checkbox" name="location" value="Montreal East" checked> Montreal East</label>
+          <label><input type="checkbox" name="location" value="Montreal West" checked> Montreal West</label>
+          <label><input type="checkbox" name="location" value="London" checked> London</label>
+          <label><input type="checkbox" name="location" value="Hamilton" checked> Hamilton</label>
+        </div>
       </div>
     </div>
     <div class="filter-group">
-      <label>Make (leave all unchecked for any)</label>
-      <div class="makes-grid" id="makes-container">
-        <label><input type="checkbox" name="make" value="Acura"> Acura</label>
-        <label><input type="checkbox" name="make" value="Alfa Romeo"> Alfa Romeo</label>
-        <label><input type="checkbox" name="make" value="Audi"> Audi</label>
-        <label><input type="checkbox" name="make" value="BMW"> BMW</label>
-        <label><input type="checkbox" name="make" value="Buick"> Buick</label>
-        <label><input type="checkbox" name="make" value="Cadillac"> Cadillac</label>
-        <label><input type="checkbox" name="make" value="Chevrolet"> Chevrolet</label>
-        <label><input type="checkbox" name="make" value="Chrysler"> Chrysler</label>
-        <label><input type="checkbox" name="make" value="Dodge"> Dodge</label>
-        <label><input type="checkbox" name="make" value="Fiat"> Fiat</label>
-        <label><input type="checkbox" name="make" value="Ford"> Ford</label>
-        <label><input type="checkbox" name="make" value="Genesis"> Genesis</label>
-        <label><input type="checkbox" name="make" value="GMC"> GMC</label>
-        <label><input type="checkbox" name="make" value="Honda"> Honda</label>
-        <label><input type="checkbox" name="make" value="Hyundai"> Hyundai</label>
-        <label><input type="checkbox" name="make" value="Infiniti"> Infiniti</label>
-        <label><input type="checkbox" name="make" value="Jaguar"> Jaguar</label>
-        <label><input type="checkbox" name="make" value="Jeep"> Jeep</label>
-        <label><input type="checkbox" name="make" value="Kia"> Kia</label>
-        <label><input type="checkbox" name="make" value="Land Rover"> Land Rover</label>
-        <label><input type="checkbox" name="make" value="Lexus"> Lexus</label>
-        <label><input type="checkbox" name="make" value="Lincoln"> Lincoln</label>
-        <label><input type="checkbox" name="make" value="Mazda"> Mazda</label>
-        <label><input type="checkbox" name="make" value="Mercedes-Benz"> Mercedes-Benz</label>
-        <label><input type="checkbox" name="make" value="MINI"> MINI</label>
-        <label><input type="checkbox" name="make" value="Mitsubishi"> Mitsubishi</label>
-        <label><input type="checkbox" name="make" value="Nissan"> Nissan</label>
-        <label><input type="checkbox" name="make" value="Porsche"> Porsche</label>
-        <label><input type="checkbox" name="make" value="Ram"> Ram</label>
-        <label><input type="checkbox" name="make" value="Subaru"> Subaru</label>
-        <label><input type="checkbox" name="make" value="Suzuki"> Suzuki</label>
-        <label><input type="checkbox" name="make" value="Tesla"> Tesla</label>
-        <label><input type="checkbox" name="make" value="Toyota"> Toyota</label>
-        <label><input type="checkbox" name="make" value="Volkswagen"> Volkswagen</label>
-        <label><input type="checkbox" name="make" value="Volvo"> Volvo</label>
+      <label>Make</label>
+      <div class="multiselect-dropdown" id="make-multiselect">
+        <button type="button" class="multiselect-btn" id="make-btn" aria-haspopup="listbox">Any make</button>
+        <div class="multiselect-panel hidden" id="make-panel" role="listbox">
+          <label><input type="checkbox" name="make" value="Acura"> Acura</label>
+          <label><input type="checkbox" name="make" value="Alfa Romeo"> Alfa Romeo</label>
+          <label><input type="checkbox" name="make" value="Audi"> Audi</label>
+          <label><input type="checkbox" name="make" value="BMW"> BMW</label>
+          <label><input type="checkbox" name="make" value="Buick"> Buick</label>
+          <label><input type="checkbox" name="make" value="Cadillac"> Cadillac</label>
+          <label><input type="checkbox" name="make" value="Chevrolet"> Chevrolet</label>
+          <label><input type="checkbox" name="make" value="Chrysler"> Chrysler</label>
+          <label><input type="checkbox" name="make" value="Dodge"> Dodge</label>
+          <label><input type="checkbox" name="make" value="Fiat"> Fiat</label>
+          <label><input type="checkbox" name="make" value="Ford"> Ford</label>
+          <label><input type="checkbox" name="make" value="Genesis"> Genesis</label>
+          <label><input type="checkbox" name="make" value="GMC"> GMC</label>
+          <label><input type="checkbox" name="make" value="Honda"> Honda</label>
+          <label><input type="checkbox" name="make" value="Hyundai"> Hyundai</label>
+          <label><input type="checkbox" name="make" value="Infiniti"> Infiniti</label>
+          <label><input type="checkbox" name="make" value="Jaguar"> Jaguar</label>
+          <label><input type="checkbox" name="make" value="Jeep"> Jeep</label>
+          <label><input type="checkbox" name="make" value="Kia"> Kia</label>
+          <label><input type="checkbox" name="make" value="Land Rover"> Land Rover</label>
+          <label><input type="checkbox" name="make" value="Lexus"> Lexus</label>
+          <label><input type="checkbox" name="make" value="Lincoln"> Lincoln</label>
+          <label><input type="checkbox" name="make" value="Mazda"> Mazda</label>
+          <label><input type="checkbox" name="make" value="Mercedes-Benz"> Mercedes-Benz</label>
+          <label><input type="checkbox" name="make" value="MINI"> MINI</label>
+          <label><input type="checkbox" name="make" value="Mitsubishi"> Mitsubishi</label>
+          <label><input type="checkbox" name="make" value="Nissan"> Nissan</label>
+          <label><input type="checkbox" name="make" value="Porsche"> Porsche</label>
+          <label><input type="checkbox" name="make" value="Ram"> Ram</label>
+          <label><input type="checkbox" name="make" value="Subaru"> Subaru</label>
+          <label><input type="checkbox" name="make" value="Suzuki"> Suzuki</label>
+          <label><input type="checkbox" name="make" value="Tesla"> Tesla</label>
+          <label><input type="checkbox" name="make" value="Toyota"> Toyota</label>
+          <label><input type="checkbox" name="make" value="Volkswagen"> Volkswagen</label>
+          <label><input type="checkbox" name="make" value="Volvo"> Volvo</label>
+        </div>
       </div>
+    </div>
+    <div class="filter-group">
+      <label for="filter-model">Model</label>
+      <input type="text" id="filter-model" placeholder="e.g. Elantra, Civic, F-150" style="min-width: 10rem;">
     </div>
     <div class="filter-group">
       <label for="filter-max-km">Max KM</label>
-      <input type="number" id="filter-max-km" placeholder="e.g. 100000" min="0" step="1000">
+      <input type="number" id="filter-max-km" placeholder="e.g. 100000" min="0" step="1000" value="200000">
     </div>
     <div class="filter-group">
-      <label for="filter-auction-from">Auction from date</label>
+      <label>Engine (L)</label>
+      <div class="engine-vertical">
+        <div class="row">
+          <label for="filter-engine-min">Min</label>
+          <input type="number" id="filter-engine-min" placeholder="e.g. 1.5" min="1" max="10" step="0.1" style="min-width: 5rem;">
+        </div>
+        <div class="row">
+          <label for="filter-engine-max">Max</label>
+          <input type="number" id="filter-engine-max" placeholder="e.g. 3.0" min="1" max="10" step="0.1" style="min-width: 5rem;">
+        </div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label for="filter-auction-from">Auction date (exact day only)</label>
       <input type="date" id="filter-auction-from" placeholder="Optional">
+    </div>
+    <div class="filter-group">
+      <label>Condition</label>
+      <div class="verification-col">
+        <label class="check-label"><input type="checkbox" id="filter-run-and-drive" checked> Run And Drive</label>
+        <label class="check-label"><input type="checkbox" id="filter-start"> Start</label>
+        <label class="check-label"><input type="checkbox" id="filter-stationary"> Stationary</label>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Brand Type</label>
+      <div class="verification-col">
+        <label class="check-label"><input type="checkbox" id="filter-brand-not-branded" checked>ON-NOT BRANDED/QC-AUCUN STATUT</label>
+        <label class="check-label"><input type="checkbox" id="filter-brand-salvage"> ON-SALVAGE/QC-V.G.A</label>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Verification</label>
+      <div class="verification-col">
+        <label class="check-label"><input type="checkbox" id="filter-car-detail" checked> Car detail (Air Bags, Keys, Damage)</label>
+        <label class="check-label"><input type="checkbox" id="filter-kenny-upull" checked> Kenny U-Pull inventory</label>
+        <label class="check-label"><input type="checkbox" id="filter-damage-estimate"> Damage Est. PDF (verify repair type)</label>
+        <div class="damage-estimate-mode hidden" id="damage-estimate-mode-wrap">
+          <label class="radio-inline"><input type="radio" name="damageEstimateMode" value="ai" checked> AI</label>
+          <label class="radio-inline"><input type="radio" name="damageEstimateMode" value="keyword"> Keyword</label>
+        </div>
+        <label class="check-label"><input type="checkbox" id="filter-gemini-price" checked> Est. min price (Gemini, by mileage, auto)</label>
+      </div>
     </div>
     <div class="filter-group" style="align-self: flex-end;">
       <button type="button" class="btn-run" id="btn-run">Run</button>
@@ -158,11 +323,125 @@
 
   <script>
     (function () {
+      var currentYear = new Date().getFullYear();
+      var yearFromSel = document.getElementById('filter-year-from');
+      var yearToSel = document.getElementById('filter-year-to');
+      for (var y = currentYear; y >= 2000; y--) {
+        var opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        if (yearFromSel) yearFromSel.appendChild(opt);
+        if (yearToSel) yearToSel.appendChild(opt.cloneNode(true));
+      }
+
       var countLine = document.getElementById('count-line');
       var tableWrap = document.getElementById('table-wrap');
       var errorWrap = document.getElementById('error-wrap');
       var btnRun = document.getElementById('btn-run');
       var cars = [];
+      var lastFiltered = [];
+
+      function resetFiltersToDefaults() {
+        var locs = document.querySelectorAll('input[name="location"]');
+        if (locs.length) {
+          locs.forEach(function (cb) {
+            cb.checked = true;
+          });
+        }
+        var yFrom = document.getElementById('filter-year-from');
+        var yTo = document.getElementById('filter-year-to');
+        if (yFrom) yFrom.value = '2010';
+        if (yTo) yTo.value = '2020';
+        var makes = document.querySelectorAll('input[name="make"]');
+        if (makes.length) makes.forEach(function (cb) { cb.checked = false; });
+        var maxKm = document.getElementById('filter-max-km');
+        if (maxKm) maxKm.value = '200000';
+        var engMin = document.getElementById('filter-engine-min');
+        var engMax = document.getElementById('filter-engine-max');
+        if (engMin) engMin.value = '';
+        if (engMax) engMax.value = '';
+        var auctionFrom = document.getElementById('filter-auction-from');
+        if (auctionFrom) {
+          var tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          var y = tomorrow.getFullYear();
+          var m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+          var d = String(tomorrow.getDate()).padStart(2, '0');
+          auctionFrom.value = y + '-' + m + '-' + d;
+        }
+        var runAndDriveEl = document.getElementById('filter-run-and-drive');
+        var startEl = document.getElementById('filter-start');
+        var stationaryEl = document.getElementById('filter-stationary');
+        var brandNotBrandedEl = document.getElementById('filter-brand-not-branded');
+        var brandSalvageEl = document.getElementById('filter-brand-salvage');
+        var carDetail = document.getElementById('filter-car-detail');
+        var kennyUpull = document.getElementById('filter-kenny-upull');
+        var damageEstimate = document.getElementById('filter-damage-estimate');
+        var geminiPrice = document.getElementById('filter-gemini-price');
+        if (runAndDriveEl) runAndDriveEl.checked = true;
+        if (startEl) startEl.checked = false;
+        if (stationaryEl) stationaryEl.checked = false;
+        if (brandNotBrandedEl) brandNotBrandedEl.checked = true;
+        if (brandSalvageEl) brandSalvageEl.checked = false;
+        if (carDetail) carDetail.checked = true;
+        if (damageEstimate) damageEstimate.checked = false;
+        if (kennyUpull) kennyUpull.checked = true;
+        if (geminiPrice) geminiPrice.checked = true;
+        if (typeof updateLocationBtn === 'function') updateLocationBtn();
+        if (typeof updateMakeBtn === 'function') updateMakeBtn();
+        cars = [];
+        if (countLine) countLine.innerHTML = '—';
+        if (tableWrap) tableWrap.innerHTML = '<div class="empty">Set filters and click Run to load vehicles.</div>';
+        var titleEl = document.getElementById('page-title');
+        if (titleEl) titleEl.textContent = 'IAA Cars';
+        document.title = 'IAA Cars';
+      }
+
+      resetFiltersToDefaults();
+
+      function toggleDamageEstimateMode() {
+        var cb = document.getElementById('filter-damage-estimate');
+        var wrap = document.getElementById('damage-estimate-mode-wrap');
+        if (wrap) wrap.classList.toggle('hidden', !(cb && cb.checked));
+      }
+      var damageEstimateCb = document.getElementById('filter-damage-estimate');
+      if (damageEstimateCb) damageEstimateCb.addEventListener('change', toggleDamageEstimateMode);
+      toggleDamageEstimateMode();
+
+      function updateLocationBtn() {
+        var locs = getSelectedLocations();
+        var btn = document.getElementById('location-btn');
+        if (btn) btn.textContent = locs.length === 0 ? 'Any location' : (locs.length === 1 ? locs[0] : 'Location (' + locs.length + ')');
+      }
+      function updateMakeBtn() {
+        var makes = getSelectedMakes();
+        var btn = document.getElementById('make-btn');
+        if (btn) btn.textContent = makes.length === 0 ? 'Any make' : (makes.length === 1 ? makes[0] : 'Make (' + makes.length + ')');
+      }
+      function setupMultiselect(btnId, panelId, updateFn) {
+        var btn = document.getElementById(btnId);
+        var panel = document.getElementById(panelId);
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          panel.classList.toggle('hidden');
+        });
+        panel.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.addEventListener('change', updateFn);
+        });
+      }
+      document.addEventListener('click', function () {
+        var lp = document.getElementById('location-panel');
+        var mp = document.getElementById('make-panel');
+        if (lp && !lp.classList.contains('hidden')) lp.classList.add('hidden');
+        if (mp && !mp.classList.contains('hidden')) mp.classList.add('hidden');
+      });
+      document.getElementById('location-multiselect')?.addEventListener('click', function (e) { e.stopPropagation(); });
+      document.getElementById('make-multiselect')?.addEventListener('click', function (e) { e.stopPropagation(); });
+      setupMultiselect('location-btn', 'location-panel', updateLocationBtn);
+      setupMultiselect('make-btn', 'make-panel', updateMakeBtn);
+      updateLocationBtn();
+      updateMakeBtn();
 
       function showError(msg) {
         errorWrap.innerHTML = msg ? '<div class="error">' + escapeHtml(msg) + '</div>' : '';
@@ -181,11 +460,125 @@
         if (str.toLowerCase().indexOf('mi') !== -1) num = num * 1.60934;
         return Number.isFinite(num) ? num : NaN;
       }
+      function parseEngineL(str) {
+        if (!str || typeof str !== 'string') return NaN;
+        var m = str.match(/(\d+(?:\.\d+)?)\s*L/i);
+        if (!m) return NaN;
+        var n = parseFloat(m[1]);
+        return Number.isFinite(n) ? n : NaN;
+      }
 
       function parseAuctionDate(s) {
         if (!s || typeof s !== 'string') return NaN;
-        var d = new Date(s.trim());
+        var trimmed = s.trim();
+        if (!trimmed) return NaN;
+        var tzMatch = trimmed.match(/\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT)\s*$/i);
+        if (tzMatch) {
+          var offsets = { EST: ' -0500', EDT: ' -0400', CST: ' -0600', CDT: ' -0500', MST: ' -0700', MDT: ' -0600', PST: ' -0800', PDT: ' -0700' };
+          var offset = offsets[tzMatch[1].toUpperCase()];
+          if (offset) trimmed = trimmed.replace(/\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT)\s*$/i, offset);
+        }
+        trimmed = trimmed.replace(/^[A-Za-z]{3},\s*/, '');
+        if (!/\b(19|20)\d{2}\b/.test(trimmed)) {
+          var year = new Date().getFullYear();
+          trimmed = trimmed.replace(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s*/, '$1 $2, ' + year + ', ');
+        }
+        var d = new Date(trimmed);
         return isNaN(d.getTime()) ? NaN : d.getTime();
+      }
+      function formatAuctionDateDisplay(s) {
+        if (!s || typeof s !== 'string') return '';
+        var d = new Date(s.trim());
+        if (isNaN(d.getTime())) return escapeHtml(s);
+        var mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+        var day = d.getDate();
+        var h = d.getHours();
+        var m = d.getMinutes();
+        return mon + ' ' + day + ', ' + (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+      }
+      function formatEngineShort(str) {
+        if (!str || typeof str !== 'string') return '';
+        var m = str.match(/(\d+(?:\.\d+)?)\s*L/i);
+        return m ? m[1] + 'L' : str;
+      }
+      function displayEstMinPriceOnly(val) {
+        if (!val || typeof val !== 'string') return '';
+        var m = val.trim().match(/\$[\d,]+/);
+        return m ? m[0] : '';
+      }
+      /** Parse first $ amount from e.g. "$5,000 - $7,000" or "$5,000". Returns number or NaN. */
+      function parseMinPriceNumber(val) {
+        if (!val || typeof val !== 'string') return NaN;
+        var m = val.trim().match(/\$([\d,]+)/);
+        if (!m) return NaN;
+        var n = parseFloat(m[1].replace(/,/g, ''));
+        return Number.isFinite(n) ? n : NaN;
+      }
+      /**
+       * IAA fees: Buyer fee (tiered) + Environmental $10 + AuctionNow $99 + Pull $69 + Carfax $41.55 + Digital Sales $20.
+       * All amounts + 13% HST. Total = (bid + buyerFee(bid) + 239.55) * 1.13
+       * Buyer fee tiers (max): $0–100: $45 | $100–500: $160 | $500–1k: $275 | $1k–2k: $440
+       * | $2k–3k: $500 | $3k–5k: $700 | $5k–15k: $800 | $15k+: 7%
+       * Returns max bid such that bid + buyerFee(bid) <= targetBeforeTaxAndFixed (i.e. before *1.13 and -239.55).
+       */
+      var IAA_FIXED_FEES = 10 + 99 + 69 + 41.55 + 20;
+      var IAA_TAX_RATE = 1.13;
+      function getMaxBidForTargetCost(targetCost) {
+        if (!Number.isFinite(targetCost) || targetCost <= 0) return NaN;
+        var C = targetCost;
+        var best = NaN;
+        var tiers = [
+          [15000, 1e9, 0.07],
+          [5000, 15000, 800],
+          [3000, 5000, 700],
+          [2000, 3000, 500],
+          [1000, 2000, 440],
+          [500, 1000, 275],
+          [100, 500, 160],
+          [0.01, 100, 45]
+        ];
+        for (var i = 0; i < tiers.length; i++) {
+          var tierLow = tiers[i][0], tierHigh = tiers[i][1], fee = tiers[i][2];
+          var candidate;
+          if (typeof fee === 'number' && fee < 1) {
+            candidate = C / (1 + fee);
+            if (candidate < tierLow) continue;
+            candidate = Math.min(candidate, tierHigh - 0.01);
+          } else {
+            candidate = Math.min(tierHigh - 0.01, C - fee);
+          }
+          if (candidate >= tierLow && (isNaN(best) || candidate > best)) best = candidate;
+        }
+        return isNaN(best) ? NaN : Math.floor(best * 100) / 100;
+      }
+      /** Max bid for 30% margin. Total cost = (bid + buyerFee + fixed) * 1.13 <= market * 0.70 */
+      function maxBidForMargin(minPrice, marginPct) {
+        if (!Number.isFinite(minPrice) || minPrice <= 0) return NaN;
+        var maxTotalCost = minPrice * (1 - marginPct / 100);
+        var maxBeforeTax = maxTotalCost / IAA_TAX_RATE;
+        var targetForBidAndBuyerFee = maxBeforeTax - IAA_FIXED_FEES;
+        if (targetForBidAndBuyerFee <= 0) return NaN;
+        return getMaxBidForTargetCost(targetForBidAndBuyerFee);
+      }
+      function getTransportDeduction(car) {
+        var loc = (car.branch || car.location || '').toLowerCase();
+        if (!loc) return 0;
+        if (/toronto/.test(loc)) return 450;
+        if (/hamilton/.test(loc)) return 600;
+        if (/london/.test(loc)) return 700;
+        return 0;
+      }
+      function formatMaxBidCell(car) {
+        var minPrice = parseMinPriceNumber(car.averagePriceByCity);
+        if (isNaN(minPrice)) return '—';
+        var bid = maxBidForMargin(minPrice, 30);
+        if (isNaN(bid)) return '—';
+        var transport = getTransportDeduction(car);
+        if (transport > 0) bid = Math.max(0, bid - transport);
+        var formatted = '$' + Math.round(bid).toLocaleString();
+        var title = 'Max bid for ~30% margin (IAA fees + HST)';
+        if (transport > 0) title += '; −$' + transport + ' for transport to Ottawa';
+        return '<span title="' + escapeHtml(title) + '">' + escapeHtml(formatted) + '</span>';
       }
 
       function slugify(s) {
@@ -216,7 +609,7 @@
         return url;
       }
       function getSelectedMakes() {
-        var checked = document.querySelectorAll('#makes-container input[name="make"]:checked');
+        var checked = document.querySelectorAll('#make-panel input[name="make"]:checked');
         var arr = [];
         for (var i = 0; i < checked.length; i++) {
           var v = (checked[i].value || '').trim();
@@ -226,7 +619,7 @@
       }
 
       function getSelectedLocations() {
-        var checked = document.querySelectorAll('input[name="location"]:checked');
+        var checked = document.querySelectorAll('#location-panel input[name="location"]:checked');
         var arr = [];
         for (var i = 0; i < checked.length; i++) arr.push((checked[i].value || '').trim());
         return arr;
@@ -243,8 +636,36 @@
         var maxKm = maxKmVal === '' ? null : parseFloat(maxKmVal);
         var auctionFromEl = document.getElementById('filter-auction-from');
         var auctionFromVal = auctionFromEl && auctionFromEl.value ? auctionFromEl.value.trim() : '';
-        var auctionFromTs = auctionFromVal ? (new Date(auctionFromVal)).getTime() : null;
-        if (auctionFromVal && isNaN(auctionFromTs)) auctionFromTs = null;
+        var auctionFromTs = null;
+        if (auctionFromVal) {
+          var d = /^\d{4}-\d{2}-\d{2}$/.test(auctionFromVal) ? new Date(auctionFromVal + 'T00:00:00') : new Date(auctionFromVal);
+          auctionFromTs = d.getTime();
+          if (isNaN(auctionFromTs)) auctionFromTs = null;
+        }
+        var engineMinEl = document.getElementById('filter-engine-min');
+        var engineMaxEl = document.getElementById('filter-engine-max');
+        var engineMin = engineMinEl && engineMinEl.value ? parseFloat(engineMinEl.value) : null;
+        var engineMax = engineMaxEl && engineMaxEl.value ? parseFloat(engineMaxEl.value) : null;
+        if (isNaN(engineMin)) engineMin = null;
+        if (isNaN(engineMax)) engineMax = null;
+
+        var runAndDriveEl = document.getElementById('filter-run-and-drive');
+        var startEl = document.getElementById('filter-start');
+        var stationaryEl = document.getElementById('filter-stationary');
+        var runAndDriveChecked = runAndDriveEl && runAndDriveEl.checked;
+        var startChecked = startEl && startEl.checked;
+        var stationaryChecked = stationaryEl && stationaryEl.checked;
+        
+        var brandNotBrandedEl = document.getElementById('filter-brand-not-branded');
+        var brandSalvageEl = document.getElementById('filter-brand-salvage');
+        var brandNotBrandedChecked = brandNotBrandedEl && brandNotBrandedEl.checked;
+        var brandSalvageChecked = brandSalvageEl && brandSalvageEl.checked;
+        
+        var modelEl = document.getElementById('filter-model');
+        var model = modelEl && modelEl.value ? modelEl.value.trim() : '';
+        
+        // Debug: check if brand checkboxes are being read
+        console.log('Brand checkboxes - NotBrandedEl:', brandNotBrandedEl, 'SalvageEl:', brandSalvageEl, 'NotBrandedChecked:', brandNotBrandedChecked, 'SalvageChecked:', brandSalvageChecked);
 
         var out = data.slice();
         if (yearFrom) out = out.filter(function (c) { var y = (c.year || '').trim(); return y && y >= yearFrom; });
@@ -254,16 +675,81 @@
           makes.forEach(function (m) { makeSet[m.toLowerCase()] = true; });
           out = out.filter(function (c) { return makeSet[(c.make || '').trim().toLowerCase()]; });
         }
+        if (model) {
+          out = out.filter(function (c) { 
+            var carModel = (c.model || '').trim().toLowerCase();
+            return carModel.includes(model.toLowerCase());
+          });
+        }
         if (maxKm != null && Number.isFinite(maxKm)) {
           out = out.filter(function (c) {
             var km = parseOdometerKm(c.odometer);
             return !isNaN(km) && km <= maxKm;
           });
         }
+        if (engineMin != null || engineMax != null) {
+          out = out.filter(function (c) {
+            var engineL = parseEngineL(c.engine);
+            if (isNaN(engineL)) return false;
+            if (engineMin != null && engineL < engineMin) return false;
+            if (engineMax != null && engineL > engineMax) return false;
+            return true;
+          });
+        }
         if (auctionFromTs != null) {
+          var filterD = new Date(auctionFromTs);
+          var filterMonth = filterD.getMonth();
+          var filterDay = filterD.getDate();
           out = out.filter(function (c) {
             var ts = parseAuctionDate(c.auctionDateTime);
-            return !isNaN(ts) && ts >= auctionFromTs;
+            if (isNaN(ts) || !Number.isFinite(ts)) return false;
+            var d = new Date(ts);
+            return d.getMonth() === filterMonth && d.getDate() === filterDay;
+          });
+        }
+        if (runAndDriveChecked || startChecked || stationaryChecked) {
+          out = out.filter(function (c) {
+            var cond = (c.condition || '').trim().toUpperCase();
+            if (!cond) return false; // Exclude cars with empty/null conditions
+            
+            var isRunDrive = /RUN\s*AND\s*DRIVE|RUNANDDRIVE/.test(cond);
+            var isStart = /\bSTART(S)?\b/.test(cond);
+            var isStationary = /\bSTATIONARY\b/.test(cond);
+            
+            // Debug: log all conditions when any filter is checked
+            if (runAndDriveChecked || startChecked || stationaryChecked) {
+              console.log('All conditions:', cond, '| RunDrive:', isRunDrive, '| Start:', isStart, '| Stationary:', isStationary);
+            }
+            
+            // Test: always log when filtering is active
+            console.log('Filter active - RunDrive:', runAndDriveChecked, 'Start:', startChecked, 'Stationary:', stationaryChecked, 'Total cars before filter:', out.length);
+            
+            var matchCondition = false;
+            if (runAndDriveChecked && isRunDrive) matchCondition = true;
+            if (startChecked && isStart) matchCondition = true;
+            if (stationaryChecked && isStationary) matchCondition = true;
+            
+            return matchCondition;
+          });
+        }
+        if (brandNotBrandedChecked || brandSalvageChecked) {
+          console.log('Brand filtering activated - NotBranded:', brandNotBrandedChecked, 'Salvage:', brandSalvageChecked, 'Total cars:', out.length);
+          out = out.filter(function (c) {
+            var brand = (c.brand || '').trim().toUpperCase();
+            var isNotBranded = /ON-NOT\s*BRANDED|QC-AUCUN\s*STATUT/.test(brand);
+            var isSalvage = /ON-SALVAGE|QC-V\.G\.?A?/.test(brand);
+            
+            // Debug: log brand values when filtering
+            console.log('Brand filter:', brand, '| NotBranded:', isNotBranded, '| Salvage:', isSalvage, '| NotBrandedChecked:', brandNotBrandedChecked, '| SalvageChecked:', brandSalvageChecked);
+            
+            // Debug: log all brand values when filter is active
+            console.log('Processing car brand:', brand, 'for filtering');
+            
+            var matchBrand = false;
+            if (brandNotBrandedChecked && isNotBranded) matchBrand = true;
+            if (brandSalvageChecked && isSalvage) matchBrand = true;
+            
+            return matchBrand;
           });
         }
         out.sort(function (a, b) {
@@ -286,9 +772,10 @@
           return;
         }
         var html = '<table><thead><tr>' +
-          '<th>Image</th><th>Vehicle</th><th>Location</th><th>Damage</th><th>Damage Est.</th><th>Odometer</th><th>Lane / Run</th><th>Auction Date / Time</th><th>Market price check</th><th>Kenny U-Pull</th>' +
+          '<th></th><th>Image</th><th>Vehicle</th><th>Brand</th><th>Location</th><th>Engine</th><th>Condition</th><th>Damage</th><th>Damage Est.</th><th>Odometer</th><th>Lane / Run</th><th>High Pre-Bid</th><th>Auction Date / Time</th><th>Est. min price</th><th>Max bid (30%)</th><th>Market price check</th><th>Kenny U-Pull</th>' +
           '</tr></thead><tbody>';
-        filtered.forEach(function (car) {
+        lastFiltered = filtered.slice();
+        filtered.forEach(function (car, idx) {
           var img = car.imageUrl
             ? (car.vehicleDetailsUrl
                 ? '<a href="' + escapeHtml(car.vehicleDetailsUrl) + '" target="_blank" rel="noopener noreferrer"><img class="grid-img" src="' + escapeHtml(car.imageUrl) + '" alt=""></a>'
@@ -298,32 +785,77 @@
           var vehicleCell = car.vehicleDetailsUrl
             ? '<a href="' + escapeHtml(car.vehicleDetailsUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(vehicle) + '</a>'
             : escapeHtml(vehicle);
-          var kennyCell = (car.kennyUpullLink)
-            ? '<a href="' + escapeHtml(car.kennyUpullLink) + '" target="_blank" rel="noopener noreferrer">Parts at Kenny</a>'
+          var brandValue = (car.brand || '').trim().toUpperCase();
+          var brandCellClass = '';
+          if (/ON-NOT\s*BRANDED|QC-AUCUN\s*STATUT/.test(brandValue)) {
+            brandCellClass = 'brand-cell-not-branded';
+          } else if (/ON-SALVAGE|QC-V\.G\.?A?/.test(brandValue)) {
+            brandCellClass = 'brand-cell-salvage';
+          }
+          var brandCell = '<span class="' + brandCellClass + '">' + escapeHtml(car.brand || '') + '</span>';
+          var kennyCell;
+          var iconCircleCheck = '<svg class="kenny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>';
+          var iconCircleWarning = '<svg class="kenny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
+          var iconCircleX = '<svg class="kenny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
+          if (car.kennyUpullMatch === 'exact' && car.kennyUpullLink) {
+            kennyCell = '<a class="kenny-icon-link" href="' + escapeHtml(car.kennyUpullLink) + '" target="_blank" rel="noopener noreferrer" title="Kenny U-Pull (same year)" style="color:#22c55e">' + iconCircleCheck + '</a>';
+          } else if (car.kennyUpullMatch === 'all-years' && car.kennyUpullLink) {
+            kennyCell = '<a class="kenny-icon-link" href="' + escapeHtml(car.kennyUpullLink) + '" target="_blank" rel="noopener noreferrer" title="Kenny U-Pull (other years only)" style="color:#f97316">' + iconCircleWarning + '</a>';
+          } else {
+            var redLink = (car.kennyUpullLink && car.kennyUpullLink.trim())
+              ? '<a class="kenny-icon-link" href="' + escapeHtml(car.kennyUpullLink) + '" target="_blank" rel="noopener noreferrer" title="No inventory – verify on Kenny U-Pull" style="color:#dc2626">' + iconCircleX + '</a>'
+              : '<span title="No Kenny U-Pull inventory" style="color:#dc2626">' + iconCircleX + '</span>';
+            kennyCell = redLink;
+          }
+          var avgPriceCell = (car.averagePriceByCity && car.averagePriceByCity.trim())
+            ? escapeHtml(car.averagePriceByCity.trim())
             : '—';
           var marketQuery = [car.year, car.make, car.model].filter(Boolean).join(' ');
-          var kijijiUrl = buildKijijiUrl(car);
-          var autoTraderUrl = buildAutoTraderUrl(car);
           var marketCell = marketQuery
-            ? (kijijiUrl
-                ? '<a href="' + escapeHtml(kijijiUrl) + '" target="_blank" rel="noopener noreferrer">Kijiji</a>'
-                : '<a href="https://www.kijiji.ca/b-cars-vehicles/canada/c27l0?q=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">Kijiji</a>')
-            + ' &middot; '
-            + '<a href="https://www.facebook.com/marketplace/search/?query=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">FB Market</a>'
-            + ' &middot; '
-            + (autoTraderUrl
-                ? '<a href="' + escapeHtml(autoTraderUrl) + '" target="_blank" rel="noopener noreferrer">AutoTrader</a>'
-                : '<a href="https://www.autotrader.ca/cars/?search=' + encodeURIComponent(marketQuery) + '" target="_blank" rel="noopener noreferrer">AutoTrader</a>')
+            ? '<a href="https://www.facebook.com/marketplace/search/?query=' + encodeURIComponent(marketQuery + ' ottawa') + '" target="_blank" rel="noopener noreferrer">FB Market</a>'
             : '—';
+          var cond = (car.condition || '').trim();
+          var conditionCell;
+          if (/run\s*and\s*drive|runanddrive/i.test(cond)) {
+            conditionCell = '<span class="condition-badge run-and-drive">Run And Drive</span>';
+          } else if (/\bstart(s)?\b/i.test(cond)) {
+            conditionCell = '<span class="condition-badge start">Start</span>';
+          } else if (/\bstationary\b/i.test(cond)) {
+            conditionCell = '<span class="condition-badge stationary">Stationary</span>';
+          } else {
+            conditionCell = cond ? escapeHtml(cond) : '—';
+          }
           html += '<tr>' +
+            '<td><button type="button" class="btn-delete-row" title="Remove row" data-row-index="' + idx + '">×</button></td>' +
             '<td>' + img + '</td>' +
             '<td>' + vehicleCell + '</td>' +
+            '<td>' + brandCell + '</td>' +
             '<td>' + escapeHtml(car.branch || car.location || '') + '</td>' +
-            '<td>' + escapeHtml(car.damage) + '</td>' +
-            '<td>' + escapeHtml(car.damageEstimate) + '</td>' +
+            '<td>' + escapeHtml(formatEngineShort(car.engine || '')) + '</td>' +
+            '<td>' + conditionCell + '</td>' +
+            '<td>' + (function() {
+              var parts = [];
+              if ((car.damage || '').trim()) parts.push(escapeHtml((car.damage || '').trim()));
+              if ((car.primaryDamage || '').trim()) parts.push('Primary: ' + escapeHtml((car.primaryDamage || '').trim()));
+              if ((car.secdDamage || '').trim()) parts.push('Secd: ' + escapeHtml((car.secdDamage || '').trim()));
+              if ((car.otherDamages || '').trim()) parts.push('Other: ' + escapeHtml((car.otherDamages || '').trim()));
+              return parts.length ? parts.join('<br>') : '—';
+            })() + '</td>' +
+            '<td>' + (function() {
+              var amount = (car.damageEstimate || '').trim();
+              var pdfUrl = (car.damageEstimatePdfUrl || '').trim();
+              if (pdfUrl) {
+                var proxyUrl = '/api/pdf?url=' + encodeURIComponent(pdfUrl);
+                return '<a class="damage-est-pdf-link" href="' + escapeHtml(proxyUrl) + '" target="_blank" rel="noopener noreferrer" title="Download Damage Estimate PDF">' + escapeHtml(amount || 'PDF') + '</a>';
+              }
+              return amount ? escapeHtml(amount) : '—';
+            })() + '</td>' +
             '<td>' + escapeHtml(car.odometer) + '</td>' +
             '<td>' + escapeHtml(car.laneRun || '') + '</td>' +
-            '<td>' + escapeHtml(car.auctionDateTime || '') + '</td>' +
+            '<td>' + (car.highPrebid ? '<span style="color:#dc2626;font-weight:600" title="High Pre-Bid">' + escapeHtml(car.highPrebid) + '</span>' : '—') + '</td>' +
+            '<td>' + formatAuctionDateDisplay(car.auctionDateTime || '') + '</td>' +
+            '<td>' + avgPriceCell + '</td>' +
+            '<td>' + formatMaxBidCell(car) + '</td>' +
             '<td>' + marketCell + '</td>' +
             '<td>' + kennyCell + '</td>' +
             '</tr>';
@@ -336,10 +868,44 @@
         showError('');
         var locations = getSelectedLocations();
         var makes = getSelectedMakes();
+        var yearFromEl = document.getElementById('filter-year-from');
+        var yearToEl = document.getElementById('filter-year-to');
+        var yearFrom = (yearFromEl && yearFromEl.value) ? yearFromEl.value.trim() : '';
+        var yearTo = (yearToEl && yearToEl.value) ? yearToEl.value.trim() : '';
+        var maxKmEl = document.getElementById('filter-max-km');
+        var maxKmVal = (maxKmEl && maxKmEl.value) ? maxKmEl.value.trim() : '';
+        var maxKm = maxKmVal === '' ? '' : maxKmVal;
+        var auctionFromEl = document.getElementById('filter-auction-from');
+        var auctionFrom = (auctionFromEl && auctionFromEl.value) ? auctionFromEl.value.trim() : '';
+        var engineMinEl = document.getElementById('filter-engine-min');
+        var engineMaxEl = document.getElementById('filter-engine-max');
+        var engineMinVal = engineMinEl && engineMinEl.value ? engineMinEl.value.trim() : '';
+        var engineMaxVal = engineMaxEl && engineMaxEl.value ? engineMaxEl.value.trim() : '';
         var url = '/api/cars?locations=' + encodeURIComponent((locations && locations.length) ? locations.join(',') : '');
         if (makes.length > 0) url += '&makes=' + encodeURIComponent(makes.join(','));
+        if (yearFrom) url += '&yearFrom=' + encodeURIComponent(yearFrom);
+        if (yearTo) url += '&yearTo=' + encodeURIComponent(yearTo);
+        if (maxKmVal !== '') url += '&maxKm=' + encodeURIComponent(maxKmVal);
+        if (engineMinVal) url += '&engineMin=' + encodeURIComponent(engineMinVal);
+        if (engineMaxVal) url += '&engineMax=' + encodeURIComponent(engineMaxVal);
+        if (auctionFrom && auctionFrom.trim()) url += '&auctionFrom=' + encodeURIComponent(auctionFrom.trim());
+        var carDetailEl = document.getElementById('filter-car-detail');
+        var kennyUpullEl = document.getElementById('filter-kenny-upull');
+        var damageEstimateEl = document.getElementById('filter-damage-estimate');
+        url += '&carDetail=' + (carDetailEl && carDetailEl.checked ? '1' : '0');
+        url += '&kennyUpull=' + (kennyUpullEl && kennyUpullEl.checked ? '1' : '0');
+        url += '&damageEstimateVerify=' + (damageEstimateEl && damageEstimateEl.checked ? '1' : '0');
+        var damageModeEl = document.querySelector('input[name="damageEstimateMode"]:checked');
+        url += '&damageEstimateMode=' + (damageModeEl ? damageModeEl.value : 'ai');
+        var geminiPriceEl = document.getElementById('filter-gemini-price');
+        url += '&geminiPrice=' + (geminiPriceEl && geminiPriceEl.checked ? '1' : '0');
         btnRun.disabled = true;
-        tableWrap.innerHTML = '<div class="empty">Loading… (scraping IAA, this may take a minute)</div>';
+        var loader = document.getElementById('warm-loader');
+        var loaderText = loader && loader.querySelector('.text');
+        if (loader) {
+          loader.classList.remove('hidden');
+          if (loaderText) loaderText.textContent = 'Loading vehicles…';
+        }
         fetch(url)
           .then(function (res) {
             if (!res.ok) throw new Error('Request failed: ' + res.status);
@@ -357,10 +923,23 @@
           })
           .finally(function () {
             btnRun.disabled = false;
+            if (loader) loader.classList.add('hidden');
+            if (loaderText) loaderText.textContent = 'Loading vehicles…';
           });
       }
 
       btnRun.addEventListener('click', run);
+
+      tableWrap.addEventListener('click', function (e) {
+        var btn = e.target.closest('.btn-delete-row');
+        if (!btn) return;
+        var idx = parseInt(btn.getAttribute('data-row-index'), 10);
+        if (isNaN(idx) || idx < 0 || idx >= lastFiltered.length) return;
+        var car = lastFiltered[idx];
+        cars = cars.filter(function (c) { return c !== car; });
+        var filtered = applyFilters(cars);
+        renderTable(filtered, getSelectedMakes());
+      });
     })();
   </script>
 </body>

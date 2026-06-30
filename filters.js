@@ -7,7 +7,7 @@
 const AIRBAG_KEYWORDS = /\b(air\s*bag|airbag|srs|deployed|supplemental\s*restraint)\b/i;
 
 // Keywords in damage description that indicate mechanical / structural issues (exclude these)
-const MECHANICAL_KEYWORDS = /\b(mechanical|engine\s*damage|transmission\s*damage|all\s*over|rollover|burn|burned|water|flood|electrical|drive\s*train|drivetrain|suspension|steering|frame|structural|undercarriage|rear\s*end|front\s*end\s*damage|hit\s*in\s*engine|seized|no\s*start|won\'?t\s*start)\b/i;
+const MECHANICAL_KEYWORDS = /\b(mech|mechanical|mécanique|engine\s*damage|transmission\s*damage|all\s*over|rollover|burn|burned|water|flood|electrical|drive\s*train|drivetrain|suspension|steering|frame|structural|undercarriage|rear\s*end|front\s*end\s*damage|hit\s*in\s*engine|seized|no\s*start|won\'?t\s*start)\b/i;
 
 /**
  * @param {string} s - e.g. "$7,183.00" or "£100"
@@ -70,8 +70,8 @@ function isOnNotBranded(car) {
 }
 
 /** Damage codes to exclude (Primary / Secd. / Other Damages from detail page). */
-const SERIOUS_DAMAGE_CODES = ['EF', 'EB', 'IF', 'FM', 'ST', 'RO', 'TR', 'TB', 'VA', 'SU'];
-const MODERATE_TO_SERIOUS_DAMAGE_CODES = ['EN', 'ID', 'UC', 'FW', 'HL'];
+const SERIOUS_DAMAGE_CODES = ['EF', 'EB', 'IF', 'FM', 'ST', 'RO', 'TB', 'VA', 'SU'];
+const MODERATE_TO_SERIOUS_DAMAGE_CODES = ['EN', 'ID', 'UC', 'POS MEC'];
 const FORBIDDEN_DAMAGE_CODES_REGEX = new RegExp(
   '\\b(' + [...SERIOUS_DAMAGE_CODES, ...MODERATE_TO_SERIOUS_DAMAGE_CODES].join('|') + ')\\b',
   'i'
@@ -82,6 +82,13 @@ function hasForbiddenDamageCode(car) {
   const text = [car.primaryDamage, car.secdDamage, car.otherDamages].filter(Boolean).join(' ');
   if (!text.trim()) return false;
   return FORBIDDEN_DAMAGE_CODES_REGEX.test(text);
+}
+
+/** True if Declarations (from detail page) contains mech-related keywords – exclude such cars. */
+function hasMechInDeclarations(car) {
+  const text = (car.declarations || '').trim();
+  if (!text) return false;
+  return MECHANICAL_KEYWORDS.test(text);
 }
 
 /** Air Bags (from detail page) must be INTACT. Missing detail = pass. Value may have extra whitespace/duplicate text from HTML. */
@@ -122,16 +129,65 @@ function keysPresentYes(car) {
   return firstWord === 'yes';
 }
 
+/** Map IAA timezone abbreviations to ISO offset so Date parses reliably (EST/EDT etc. are implementation-dependent). */
+const TZ_ABBREV_TO_OFFSET = {
+  EST: ' -0500', EDT: ' -0400',
+  CST: ' -0600', CDT: ' -0500',
+  MST: ' -0700', MDT: ' -0600',
+  PST: ' -0800', PDT: ' -0700',
+};
+
 /**
- * @param {string} s - e.g. "Tue, Feb 10, 11:00 AM EST"
+ * @param {string} s - e.g. "Thu, Feb 12, 11:00 AM EST" or "mar., mai 12, 09:00 EDT"
  * @returns {number} timestamp or Infinity if unparseable
  */
 function parseAuctionDate(s) {
   if (!s || typeof s !== 'string') return Infinity;
-  const trimmed = s.trim();
+  let trimmed = s.trim();
   if (!trimmed) return Infinity;
+  const tzMatch = trimmed.match(/\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT)\s*$/i);
+  if (tzMatch) {
+    const offset = TZ_ABBREV_TO_OFFSET[tzMatch[1].toUpperCase()];
+    if (offset) trimmed = trimmed.replace(/\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT)\s*$/i, offset);
+  }
+  // Remove French day abbreviations like "mar.", "lun.", "ven.", "mer."
+  trimmed = trimmed.replace(/^[a-z]{3}\.\s*/, '');
+  // Map French month names to English
+  const frenchToEnglishMonths = {
+    'janv': 'Jan', 'févr': 'Feb', 'mars': 'Mar', 'avr': 'Apr', 'mai': 'May',
+    'juin': 'Jun', 'juil': 'Jul', 'août': 'Aug', 'sept': 'Sep', 'oct': 'Oct',
+    'nov': 'Nov', 'déc': 'Dec'
+  };
+  // Replace French month names with English
+  for (const [french, english] of Object.entries(frenchToEnglishMonths)) {
+    const regex = new RegExp(`\\b${french}\\b`, 'i');
+    if (regex.test(trimmed)) {
+      trimmed = trimmed.replace(regex, english);
+      break;
+    }
+  }
+  // Remove English day abbreviations like "Thu,", "Fri,"
+  trimmed = trimmed.replace(/^[A-Za-z]{3},\s*/, '');
+  if (!/\b(19|20)\d{2}\b/.test(trimmed)) {
+    const year = new Date().getFullYear();
+    trimmed = trimmed.replace(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s*/, `$1 $2, ${year}, `);
+  }
   const d = new Date(trimmed);
   return Number.isFinite(d.getTime()) ? d.getTime() : Infinity;
+}
+
+/** Start of day (midnight) in local time for a given timestamp. */
+function startOfDayLocal(ts) {
+  if (!Number.isFinite(ts)) return ts;
+  const d = new Date(ts);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** True if (month, day) of ts equals (filterMonth, filterDay). Year is ignored. */
+function isMonthDayEqual(ts, filterMonth, filterDay) {
+  if (!Number.isFinite(ts)) return false;
+  const d = new Date(ts);
+  return d.getMonth() === filterMonth && d.getDate() === filterDay;
 }
 
 /**
@@ -192,6 +248,8 @@ function filterAndSortCars(cars, options = {}) {
 module.exports = {
   parseDamageEstimate,
   parseAuctionDate,
+  startOfDayLocal,
+  isMonthDayEqual,
   hasAirBagDamage,
   hasMechanicalIssues,
   isOttawa,
@@ -200,6 +258,7 @@ module.exports = {
   isRunAndDrive,
   isOnNotBranded,
   hasForbiddenDamageCode,
+  hasMechInDeclarations,
   hasAirBagsIntact,
   hasNoMajorRestraintIssues,
   hasRestraintAirbag,
