@@ -1281,4 +1281,8 @@ async function scrapeCars(options = {}) {
   }
 }
 
-module.exports = { scrapeCars, SEARCH_URL, getHtmlWithBrowser, parseCarsFromHtml, warmScrapePage, getWarmStatus, getCookiesForPdf };
+module.exports = {
+  scrapeCars,
+  getWarmStatus,
+  getCookiesForPdf,
+};

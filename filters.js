@@ -44,10 +44,10 @@ function isOttawa(car) {
   return /ottawa/i.test(text);
 }
 
-/** Ottawa, Toronto, Toronto North, Toronto West */
+/** Toronto North, Toronto West */
 function isAllowedBranch(car) {
   const text = [car.branch, car.location].filter(Boolean).join(' ');
-  return /ottawa|toronto/i.test(text);
+  return /ottawa|montreal|toronto|quebec/i.test(text);
 }
 
 /** True if car branch/location matches any of the location strings (case-insensitive contains). */

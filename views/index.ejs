@@ -139,6 +139,19 @@
     }
     .btn-run:hover { background: #1d4ed8; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35); }
     .btn-run:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
+    .btn-refresh {
+      padding: 0.6rem 1.5rem;
+      background: #059669;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+      box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+    }
+    .btn-refresh:hover { background: #047857; box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35); }
+    .btn-refresh:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
     .btn-delete-row { width: 1.75rem; height: 1.75rem; padding: 0; border: 1px solid #dc2626; background: #fff; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 1.2rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .btn-delete-row:hover { background: #dc2626; color: #fff; }
     .count { color: #4b5563; margin-bottom: 0.75rem; font-size: 0.95rem; }
@@ -204,10 +217,12 @@
     <div class="filter-group">
       <label>Location</label>
       <div class="multiselect-dropdown" id="location-multiselect">
-        <button type="button" class="multiselect-btn" id="location-btn" aria-haspopup="listbox">All locations (6)</button>
+        <button type="button" class="multiselect-btn" id="location-btn" aria-haspopup="listbox">All locations (8)</button>
         <div class="multiselect-panel hidden" id="location-panel" role="listbox">
           <label><input type="checkbox" name="location" value="Ottawa" checked> Ottawa</label>
-          <label><input type="checkbox" name="location" value="Toronto" checked> Toronto</label>
+          <label><input type="checkbox" name="location" value="Toronto Oshawa" checked> Toronto Oshawa</label>
+          <label><input type="checkbox" name="location" value="Toronto North" checked> Toronto North</label>
+          <label><input type="checkbox" name="location" value="Toronto West" checked> Toronto West</label>
           <label><input type="checkbox" name="location" value="Montreal East" checked> Montreal East</label>
           <label><input type="checkbox" name="location" value="Montreal West" checked> Montreal West</label>
           <label><input type="checkbox" name="location" value="London" checked> London</label>
@@ -313,6 +328,7 @@
     </div>
     <div class="filter-group" style="align-self: flex-end;">
       <button type="button" class="btn-run" id="btn-run">Run</button>
+      <button type="button" class="btn-refresh" id="btn-refresh" style="margin-left: 0.5rem;">Refresh</button>
     </div>
   </div>
 
@@ -338,6 +354,7 @@
       var tableWrap = document.getElementById('table-wrap');
       var errorWrap = document.getElementById('error-wrap');
       var btnRun = document.getElementById('btn-run');
+      var btnRefresh = document.getElementById('btn-refresh');
       var cars = [];
       var lastFiltered = [];
 
@@ -345,17 +362,23 @@
         var locs = document.querySelectorAll('input[name="location"]');
         if (locs.length) {
           locs.forEach(function (cb) {
-            cb.checked = true;
+            var locValue = (cb.value || '').trim();
+            // Uncheck Hamilton and London, check others
+            if (locValue === 'Hamilton' || locValue === 'London') {
+              cb.checked = false;
+            } else {
+              cb.checked = true;
+            }
           });
         }
         var yFrom = document.getElementById('filter-year-from');
         var yTo = document.getElementById('filter-year-to');
         if (yFrom) yFrom.value = '2010';
-        if (yTo) yTo.value = '2020';
+        if (yTo) yTo.value = '';
         var makes = document.querySelectorAll('input[name="make"]');
         if (makes.length) makes.forEach(function (cb) { cb.checked = false; });
         var maxKm = document.getElementById('filter-max-km');
-        if (maxKm) maxKm.value = '200000';
+        if (maxKm) maxKm.value = '170000';
         var engMin = document.getElementById('filter-engine-min');
         var engMax = document.getElementById('filter-engine-max');
         if (engMin) engMin.value = '';
@@ -929,6 +952,51 @@
       }
 
       btnRun.addEventListener('click', run);
+
+      function refresh() {
+        showError('');
+        var loader = document.getElementById('warm-loader');
+        var loaderText = loader && loader.querySelector('.text');
+        if (loader) {
+          loader.classList.remove('hidden');
+          if (loaderText) loaderText.textContent = 'Loading vehicles from memory…';
+        }
+        btnRefresh.disabled = true;
+        
+        fetch('/api/cars-from-memory')
+          .then(function (res) {
+            if (!res.ok) {
+              if (res.status === 404) {
+                throw new Error('No data in memory. Click Run to scrape vehicles first.');
+              }
+              throw new Error('Request failed: ' + res.status);
+            }
+            return res.json();
+          })
+          .then(function (data) {
+            cars = data.cars || [];
+            var makes = getSelectedMakes();
+            var filtered = applyFilters(cars);
+            renderTable(filtered, makes);
+            if (data.timestamp) {
+              console.log('Loaded data from memory (scraped at:', data.timestamp + ')');
+            }
+          })
+          .catch(function (err) {
+            showError(err.message || 'Failed to load vehicles from memory.');
+            if (cars.length === 0) {
+              tableWrap.innerHTML = '<div class="empty">Set filters and click Run to load vehicles.</div>';
+              countLine.textContent = '—';
+            }
+          })
+          .finally(function () {
+            btnRefresh.disabled = false;
+            if (loader) loader.classList.add('hidden');
+            if (loaderText) loaderText.textContent = 'Loading vehicles…';
+          });
+      }
+
+      btnRefresh.addEventListener('click', refresh);
 
       tableWrap.addEventListener('click', function (e) {
         var btn = e.target.closest('.btn-delete-row');

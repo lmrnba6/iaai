@@ -5,7 +5,11 @@ const { scrapeCars, getWarmStatus, getCookiesForPdf } = require('./scraper');
 const { enrichCarsWithGeminiPrice } = require('./gemini');
 const { downloadPdf } = require('./damage-estimate');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
+
+// Server-side memory storage for scraped cars
+let storedCars = [];
+let storedCarsTimestamp = null;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -17,6 +21,14 @@ app.get('/', (req, res) => {
 
 app.get('/api/status', (req, res) => {
   res.json(getWarmStatus());
+});
+
+app.get('/api/memory-status', (req, res) => {
+  res.json({
+    hasData: storedCars.length > 0,
+    count: storedCars.length,
+    timestamp: storedCarsTimestamp
+  });
 });
 
 /** Proxy Damage Estimate PDF download (IAA requires auth cookies). */
@@ -61,7 +73,7 @@ app.get('/api/cars', async (req, res) => {
   const engineMax = engineMaxParam ? (Number(engineMaxParam) || null) : null;
   const carDetail = /^(1|true|yes)$/i.test(String(req.query.carDetail || '1').trim());
   const kennyUpull = /^(1|true|yes)$/i.test(String(req.query.kennyUpull || '1').trim());
-  const geminiPrice = /^(1|true|yes)$/i.test(String(req.query.geminiPrice || '0').trim());
+  const geminiPrice = /^(1|true|yes)$/i.test(String(req.query.geminiPrice || '1').trim());
   const damageEstimateVerify = /^(1|true|yes)$/i.test(String(req.query.damageEstimateVerify || '0').trim());
   const damageEstimateMode = (req.query.damageEstimateMode || 'ai').toLowerCase();
   const options = { locations, makes, carDetail, kennyUpull, geminiPrice, damageEstimateVerify, damageEstimateMode: damageEstimateMode === 'keyword' ? 'keyword' : 'ai' };
@@ -79,11 +91,23 @@ app.get('/api/cars', async (req, res) => {
       await enrichCarsWithGeminiPrice(cars);
     }
     console.log('[server] Scrape done. Returning', cars.length, 'vehicles.');
+    // Store cars in server memory
+    storedCars = cars;
+    storedCarsTimestamp = new Date().toISOString();
+    console.log('[server] Stored', storedCars.length, 'cars in memory at', storedCarsTimestamp);
     res.json({ cars, count: cars.length });
   } catch (err) {
     console.error('[server] Scrape error:', err.message);
     res.status(500).json({ error: err.message, cars: [] });
   }
+});
+
+app.get('/api/cars-from-memory', (req, res) => {
+  if (storedCars.length === 0) {
+    return res.status(404).json({ error: 'No data in memory. Run a scrape first.', cars: [] });
+  }
+  console.log('[server] Returning', storedCars.length, 'cars from memory (scraped at', storedCarsTimestamp + ')');
+  res.json({ cars: storedCars, count: storedCars.length, timestamp: storedCarsTimestamp });
 });
 
 app.listen(PORT, () => {
