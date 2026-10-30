@@ -152,6 +152,37 @@
     }
     .btn-refresh:hover { background: #047857; box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35); }
     .btn-refresh:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
+
+    .btn-evaluate { padding: 4px 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .btn-evaluate:hover { background: #1d4ed8; }
+    .btn-evaluate:disabled { background: #94a3b8; border-color: #94a3b8; cursor: wait; }
+
+    .eval-modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); display: flex; align-items: flex-start; justify-content: center; z-index: 1000; padding: 2rem 1rem; overflow-y: auto; }
+    .eval-modal.hidden { display: none; }
+    .eval-modal-box { background: #fff; border-radius: 10px; width: min(760px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+    .eval-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 1.2rem; border-bottom: 1px solid #e2e8f0; font-weight: 700; }
+    .eval-modal-header button { border: none; background: none; font-size: 1.4rem; cursor: pointer; color: #475569; line-height: 1; }
+    .eval-modal-body { padding: 1rem 1.2rem 1.4rem; max-height: 75vh; overflow-y: auto; }
+    .eval-facts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.8rem; }
+    .eval-fact { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.45rem 0.7rem; background: #f8fafc; font-size: 0.82rem; }
+    .eval-fact b { display: block; font-size: 1.05rem; }
+    .eval-section { margin-top: 0.9rem; }
+    .eval-section h4 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; }
+    .eval-verdict { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.9rem; line-height: 1.45; }
+    .eval-list { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; }
+    .eval-list li { margin: 0.15rem 0; }
+    .eval-red { color: #dc2626; }
+    .eval-links { margin-top: 1rem; display: flex; gap: 0.8rem; flex-wrap: wrap; }
+    .eval-links a { color: #2563eb; font-size: 0.85rem; text-decoration: underline; }
+    .eval-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.6rem 0.9rem; color: #b91c1c; font-size: 0.85rem; }
+    .eval-spinner { padding: 2rem 0; text-align: center; color: #64748b; font-size: 0.9rem; }
+
+    .eval-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; }
+    .eval-info { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.4rem 0.65rem; background: #f8fafc; font-size: 0.82rem; }
+    .eval-info span { display: block; color: #64748b; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem; }
+    .eval-info b { font-weight: 600; word-break: break-word; font-size: 0.82rem; }
+    .eval-info a { color: #2563eb; text-decoration: underline; }
+    .eval-green { color: #16a34a; }
     .btn-delete-row { width: 1.75rem; height: 1.75rem; padding: 0; border: 1px solid #dc2626; background: #fff; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 1.2rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
     .btn-delete-row:hover { background: #dc2626; color: #fff; }
     .count { color: #4b5563; margin-bottom: 0.75rem; font-size: 0.95rem; }
@@ -185,6 +216,8 @@
     .repair-parts-list { margin: 0.35rem 0 0; padding-left: 1.25rem; font-size: 0.85rem; color: #475569; max-height: 8rem; overflow-y: auto; }
     .damage-estimate-mode { margin-top: 0.35rem; margin-left: 1.5rem; font-size: 0.9rem; }
     .damage-estimate-mode.hidden { display: none; }
+    .verification-col .check-label.salvage-mode.hidden { display: none; }
+    .salvage-mode { padding-left: 0.9rem; color: #b45309; }
     .radio-inline { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 1rem; cursor: pointer; }
   </style>
 </head>
@@ -279,7 +312,7 @@
     </div>
     <div class="filter-group">
       <label for="filter-max-km">Max KM</label>
-      <input type="number" id="filter-max-km" placeholder="e.g. 100000" min="0" step="1000" value="200000">
+      <input type="number" id="filter-max-km" placeholder="e.g. 100000" min="0" step="1000" value="150000">
     </div>
     <div class="filter-group">
       <label>Engine (L)</label>
@@ -310,20 +343,21 @@
       <label>Brand Type</label>
       <div class="verification-col">
         <label class="check-label"><input type="checkbox" id="filter-brand-not-branded" checked>ON-NOT BRANDED/QC-AUCUN STATUT</label>
-        <label class="check-label"><input type="checkbox" id="filter-brand-salvage"> ON-SALVAGE/QC-V.G.A</label>
+        <label class="check-label"><input type="checkbox" id="filter-brand-salvage" checked> ON-SALVAGE/QC-V.G.A</label>
+        <label class="check-label salvage-mode hidden" id="salvage-mode-wrap"><input type="checkbox" id="filter-salvage-mode" checked title="Salvage cars are only shown if engine is 1.8L or less AND year is 2024 or newer. Not-branded cars are not affected."> Salvage: ≤1.8L & 2024+ only</label>
       </div>
     </div>
     <div class="filter-group">
       <label>Verification</label>
       <div class="verification-col">
-        <label class="check-label"><input type="checkbox" id="filter-car-detail" checked> Car detail (Air Bags, Keys, Damage)</label>
-        <label class="check-label"><input type="checkbox" id="filter-kenny-upull" checked> Kenny U-Pull inventory</label>
+        <label class="check-label"><input type="checkbox" id="filter-car-detail"> Car detail (Air Bags, Keys, Damage)</label>
+        <label class="check-label"><input type="checkbox" id="filter-kenny-upull"> Kenny U-Pull inventory</label>
         <label class="check-label"><input type="checkbox" id="filter-damage-estimate"> Damage Est. PDF (verify repair type)</label>
         <div class="damage-estimate-mode hidden" id="damage-estimate-mode-wrap">
           <label class="radio-inline"><input type="radio" name="damageEstimateMode" value="ai" checked> AI</label>
           <label class="radio-inline"><input type="radio" name="damageEstimateMode" value="keyword"> Keyword</label>
         </div>
-        <label class="check-label"><input type="checkbox" id="filter-gemini-price" checked> Est. min price (Gemini, by mileage, auto)</label>
+        <label class="check-label"><input type="checkbox" id="filter-gemini-price"> Est. min price (Gemini, by mileage, auto)</label>
       </div>
     </div>
     <div class="filter-group" style="align-self: flex-end;">
@@ -335,6 +369,16 @@
   <div class="count" id="count-line">—</div>
   <div id="table-wrap">
     <div class="empty">Set filters and click Run to load vehicles.</div>
+  </div>
+
+  <div class="eval-modal hidden" id="eval-modal">
+    <div class="eval-modal-box">
+      <div class="eval-modal-header">
+        <span id="eval-modal-title">Vehicle Evaluation</span>
+        <button type="button" id="eval-modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="eval-modal-body" id="eval-modal-body"></div>
+    </div>
   </div>
 
   <script>
@@ -362,23 +406,17 @@
         var locs = document.querySelectorAll('input[name="location"]');
         if (locs.length) {
           locs.forEach(function (cb) {
-            var locValue = (cb.value || '').trim();
-            // Uncheck Hamilton and London, check others
-            if (locValue === 'Hamilton' || locValue === 'London') {
-              cb.checked = false;
-            } else {
-              cb.checked = true;
-            }
+            cb.checked = true;
           });
         }
         var yFrom = document.getElementById('filter-year-from');
         var yTo = document.getElementById('filter-year-to');
-        if (yFrom) yFrom.value = '2010';
+        if (yFrom) yFrom.value = String(new Date().getFullYear() - 10);
         if (yTo) yTo.value = '';
         var makes = document.querySelectorAll('input[name="make"]');
         if (makes.length) makes.forEach(function (cb) { cb.checked = false; });
         var maxKm = document.getElementById('filter-max-km');
-        if (maxKm) maxKm.value = '170000';
+        if (maxKm) maxKm.value = '150000';
         var engMin = document.getElementById('filter-engine-min');
         var engMax = document.getElementById('filter-engine-max');
         if (engMin) engMin.value = '';
@@ -397,6 +435,7 @@
         var stationaryEl = document.getElementById('filter-stationary');
         var brandNotBrandedEl = document.getElementById('filter-brand-not-branded');
         var brandSalvageEl = document.getElementById('filter-brand-salvage');
+        var salvageModeEl = document.getElementById('filter-salvage-mode');
         var carDetail = document.getElementById('filter-car-detail');
         var kennyUpull = document.getElementById('filter-kenny-upull');
         var damageEstimate = document.getElementById('filter-damage-estimate');
@@ -405,11 +444,12 @@
         if (startEl) startEl.checked = false;
         if (stationaryEl) stationaryEl.checked = false;
         if (brandNotBrandedEl) brandNotBrandedEl.checked = true;
-        if (brandSalvageEl) brandSalvageEl.checked = false;
-        if (carDetail) carDetail.checked = true;
+        if (brandSalvageEl) brandSalvageEl.checked = true;
+        if (salvageModeEl) salvageModeEl.checked = true;
+        if (carDetail) carDetail.checked = false;
         if (damageEstimate) damageEstimate.checked = false;
-        if (kennyUpull) kennyUpull.checked = true;
-        if (geminiPrice) geminiPrice.checked = true;
+        if (kennyUpull) kennyUpull.checked = false;
+        if (geminiPrice) geminiPrice.checked = false;
         if (typeof updateLocationBtn === 'function') updateLocationBtn();
         if (typeof updateMakeBtn === 'function') updateMakeBtn();
         cars = [];
@@ -430,6 +470,15 @@
       var damageEstimateCb = document.getElementById('filter-damage-estimate');
       if (damageEstimateCb) damageEstimateCb.addEventListener('change', toggleDamageEstimateMode);
       toggleDamageEstimateMode();
+
+      function toggleSalvageMode() {
+        var cb = document.getElementById('filter-brand-salvage');
+        var wrap = document.getElementById('salvage-mode-wrap');
+        if (wrap) wrap.classList.toggle('hidden', !(cb && cb.checked));
+      }
+      var salvageBrandCb = document.getElementById('filter-brand-salvage');
+      if (salvageBrandCb) salvageBrandCb.addEventListener('change', toggleSalvageMode);
+      toggleSalvageMode();
 
       function updateLocationBtn() {
         var locs = getSelectedLocations();
@@ -686,9 +735,6 @@
         
         var modelEl = document.getElementById('filter-model');
         var model = modelEl && modelEl.value ? modelEl.value.trim() : '';
-        
-        // Debug: check if brand checkboxes are being read
-        console.log('Brand checkboxes - NotBrandedEl:', brandNotBrandedEl, 'SalvageEl:', brandSalvageEl, 'NotBrandedChecked:', brandNotBrandedChecked, 'SalvageChecked:', brandSalvageChecked);
 
         var out = data.slice();
         if (yearFrom) out = out.filter(function (c) { var y = (c.year || '').trim(); return y && y >= yearFrom; });
@@ -738,15 +784,7 @@
             var isRunDrive = /RUN\s*AND\s*DRIVE|RUNANDDRIVE/.test(cond);
             var isStart = /\bSTART(S)?\b/.test(cond);
             var isStationary = /\bSTATIONARY\b/.test(cond);
-            
-            // Debug: log all conditions when any filter is checked
-            if (runAndDriveChecked || startChecked || stationaryChecked) {
-              console.log('All conditions:', cond, '| RunDrive:', isRunDrive, '| Start:', isStart, '| Stationary:', isStationary);
-            }
-            
-            // Test: always log when filtering is active
-            console.log('Filter active - RunDrive:', runAndDriveChecked, 'Start:', startChecked, 'Stationary:', stationaryChecked, 'Total cars before filter:', out.length);
-            
+
             var matchCondition = false;
             if (runAndDriveChecked && isRunDrive) matchCondition = true;
             if (startChecked && isStart) matchCondition = true;
@@ -756,22 +794,26 @@
           });
         }
         if (brandNotBrandedChecked || brandSalvageChecked) {
-          console.log('Brand filtering activated - NotBranded:', brandNotBrandedChecked, 'Salvage:', brandSalvageChecked, 'Total cars:', out.length);
+          var salvageModeEl = document.getElementById('filter-salvage-mode');
+          var salvageModeChecked = salvageModeEl && salvageModeEl.checked;
           out = out.filter(function (c) {
             var brand = (c.brand || '').trim().toUpperCase();
             var isNotBranded = /ON-NOT\s*BRANDED|QC-AUCUN\s*STATUT/.test(brand);
             var isSalvage = /ON-SALVAGE|QC-V\.G\.?A?/.test(brand);
-            
-            // Debug: log brand values when filtering
-            console.log('Brand filter:', brand, '| NotBranded:', isNotBranded, '| Salvage:', isSalvage, '| NotBrandedChecked:', brandNotBrandedChecked, '| SalvageChecked:', brandSalvageChecked);
-            
-            // Debug: log all brand values when filter is active
-            console.log('Processing car brand:', brand, 'for filtering');
-            
+
             var matchBrand = false;
             if (brandNotBrandedChecked && isNotBranded) matchBrand = true;
-            if (brandSalvageChecked && isSalvage) matchBrand = true;
-            
+            if (brandSalvageChecked && isSalvage) {
+              if (salvageModeChecked) {
+                // Salvage only when small engine (<=1.8L) and recent (2024+)
+                var engL = parseEngineL(c.engine);
+                var yr = Number((c.year || '').trim());
+                matchBrand = Number.isFinite(engL) && engL <= 1.8 && Number.isFinite(yr) && yr >= 2024;
+              } else {
+                matchBrand = true;
+              }
+            }
+
             return matchBrand;
           });
         }
@@ -795,7 +837,7 @@
           return;
         }
         var html = '<table><thead><tr>' +
-          '<th></th><th>Image</th><th>Vehicle</th><th>Brand</th><th>Location</th><th>Engine</th><th>Condition</th><th>Damage</th><th>Damage Est.</th><th>Odometer</th><th>Lane / Run</th><th>High Pre-Bid</th><th>Auction Date / Time</th><th>Est. min price</th><th>Max bid (30%)</th><th>Market price check</th><th>Kenny U-Pull</th>' +
+          '<th></th><th>Image</th><th>Vehicle</th><th>Brand</th><th>Location</th><th>Engine</th><th>Condition</th><th>Damage</th><th>Damage Est.</th><th>Odometer</th><th>Lane / Run</th><th>High Pre-Bid</th><th>Auction Date / Time</th><th>Est. min price</th><th>Max bid (30%)</th><th>Market price check</th><th>Kenny U-Pull</th><th>Eval</th>' +
           '</tr></thead><tbody>';
         lastFiltered = filtered.slice();
         filtered.forEach(function (car, idx) {
@@ -881,6 +923,9 @@
             '<td>' + formatMaxBidCell(car) + '</td>' +
             '<td>' + marketCell + '</td>' +
             '<td>' + kennyCell + '</td>' +
+            '<td>' + (car.stockNum
+              ? '<button type="button" class="btn-evaluate" data-stock="' + escapeHtml(String(car.stockNum).trim()) + '" title="Evaluate: Carfax history + parts to change">Eval</button>'
+              : '—') + '</td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -999,15 +1044,185 @@
       btnRefresh.addEventListener('click', refresh);
 
       tableWrap.addEventListener('click', function (e) {
-        var btn = e.target.closest('.btn-delete-row');
-        if (!btn) return;
-        var idx = parseInt(btn.getAttribute('data-row-index'), 10);
-        if (isNaN(idx) || idx < 0 || idx >= lastFiltered.length) return;
-        var car = lastFiltered[idx];
-        cars = cars.filter(function (c) { return c !== car; });
-        var filtered = applyFilters(cars);
-        renderTable(filtered, getSelectedMakes());
+        var btnDel = e.target.closest('.btn-delete-row');
+        if (btnDel) {
+          var idx = parseInt(btnDel.getAttribute('data-row-index'), 10);
+          if (!isNaN(idx) && idx >= 0 && idx < lastFiltered.length) {
+            var car = lastFiltered[idx];
+            cars = cars.filter(function (c) { return c !== car; });
+            renderTable(applyFilters(cars), getSelectedMakes());
+          }
+          return;
+        }
+        var btnEval = e.target.closest('.btn-evaluate');
+        if (btnEval) openEvaluation(btnEval.getAttribute('data-stock'), btnEval, false);
       });
+
+      // ---------- Per-car evaluation (Carfax + damage estimate + AI verdict) ----------
+      var evalCache = {};
+      var evalModal = document.getElementById('eval-modal');
+      var evalModalBody = document.getElementById('eval-modal-body');
+      var evalModalTitle = document.getElementById('eval-modal-title');
+
+      function closeEvalModal() { if (evalModal) evalModal.classList.add('hidden'); }
+      var evalCloseBtn = document.getElementById('eval-modal-close');
+      if (evalCloseBtn) evalCloseBtn.addEventListener('click', closeEvalModal);
+      if (evalModal) evalModal.addEventListener('click', function (e) { if (e.target === evalModal) closeEvalModal(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeEvalModal(); });
+      // Re-evaluate link inside the modal: forces a fresh fetch (bypasses both caches)
+      if (evalModalBody) {
+        evalModalBody.addEventListener('click', function (e) {
+          var rerun = e.target.closest('#eval-rerun');
+          if (!rerun) return;
+          e.preventDefault();
+          var stock = evalModal ? evalModal.dataset.stock : '';
+          if (stock) {
+            delete evalCache[stock];
+            openEvaluation(stock, null, true);
+          }
+        });
+      }
+
+      function evalInfo(label, valueHtml, cls) {
+        return '<div class="eval-info"><span>' + escapeHtml(label) + '</span><b class="' + (cls || '') + '">' + (valueHtml || '—') + '</b></div>';
+      }
+
+      function renderVehicleInfo(car, r, ai) {
+        if (!car) return '';
+        var parts = ai && Array.isArray(ai.partsToChange) && ai.partsToChange.length
+          ? ai.partsToChange
+          : (r.damage && r.damage.ok ? r.damage.partsToChange : []);
+        var airBags = ((r && r.airBags) || car.airBagsDetail || '').trim();
+        var airCls = /damaged|deployed/i.test(airBags) ? 'eval-red' : (/intact/i.test(airBags) ? 'eval-green' : '');
+        var keys = ((r && r.keysPresent) || car.keysPresent || '').trim();
+        var keysCls = /yes/i.test(keys) ? 'eval-green' : (/^no\b/i.test(keys) ? 'eval-red' : '');
+        var restraint = ((r && r.restraintSystem) || car.restraintSystem || '').trim();
+        var pdfUrl = ((r && r.damageEstimatePdfUrl) || car.damageEstimatePdfUrl || '').trim();
+        var damageEst = pdfUrl
+          ? '<a href="/api/pdf?url=' + encodeURIComponent(pdfUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml((car.damageEstimate || 'PDF').trim()) + '</a>'
+          : escapeHtml((car.damageEstimate || '').trim());
+        var damageBits = [];
+        if ((car.damage || '').trim()) damageBits.push(escapeHtml(car.damage.trim()));
+        if ((car.primaryDamage || '').trim()) damageBits.push('Primary: ' + escapeHtml(car.primaryDamage.trim()));
+        if ((car.secdDamage || '').trim()) damageBits.push('Secd: ' + escapeHtml(car.secdDamage.trim()));
+        if ((car.otherDamages || '').trim()) damageBits.push('Other: ' + escapeHtml(car.otherDamages.trim()));
+        var marketMin = ((r && r.marketMinPrice) || car.averagePriceByCity || '').trim();
+        var kennyMatch = (r && r.kennyUpullMatch) || car.kennyUpullMatch || '';
+        var kennyLink = ((r && r.kennyUpullLink) || car.kennyUpullLink || '').trim();
+        var kennyCls = kennyMatch === 'exact' ? 'eval-green' : kennyMatch === 'none' ? 'eval-red' : '';
+        var kennyTxt = kennyMatch === 'exact' ? 'In stock (same year)'
+          : kennyMatch === 'all-years' ? 'In stock (other years)'
+          : kennyMatch === 'none' ? 'Not in stock' : '—';
+        var kennyHtml = kennyLink
+          ? '<a href="' + escapeHtml(kennyLink) + '" target="_blank" rel="noopener noreferrer">' + kennyTxt + '</a>'
+          : kennyTxt;
+        var vin = ((r && r.vin) || car.vin || '').trim();
+        var demand = r.demandScore != null ? r.demandScore : (car.geminiDemandScore != null ? car.geminiDemandScore : null);
+        return '<div class="eval-section"><h4>Vehicle & Evaluation</h4><div class="eval-grid">' +
+          evalInfo('Brand', (car.brand || '').trim() ? escapeHtml(car.brand.trim()) : '') +
+          evalInfo('Location', escapeHtml(car.branch || car.location || '')) +
+          evalInfo('Engine', escapeHtml(formatEngineShort(car.engine || ''))) +
+          evalInfo('Condition', escapeHtml(car.condition || '')) +
+          evalInfo('Odometer', escapeHtml(String(car.odometer || ''))) +
+          evalInfo('Lane / Run', escapeHtml(car.laneRun || '')) +
+          evalInfo('High Pre-Bid', escapeHtml(car.highPrebid || car.highPreBid || '')) +
+          evalInfo('Auction date', escapeHtml(formatAuctionDateDisplay(car.auctionDateTime || ''))) +
+          evalInfo('Damage', damageBits.length ? damageBits.join('<br>') : '') +
+          evalInfo('Damage Est.', damageEst) +
+          evalInfo('FB Marketplace min', escapeHtml(marketMin)) +
+          evalInfo('Air Bags', airBags ? escapeHtml(airBags) : '', airCls) +
+          evalInfo('Keys Present', keys ? escapeHtml(keys) : '', keysCls) +
+          evalInfo('Restraint System', restraint ? escapeHtml(restraint) : '') +
+          evalInfo('Kenny U-Pull', kennyHtml, kennyCls) +
+          (ai ? evalInfo('Previous owners', ai.previousOwners != null ? String(ai.previousOwners) : '?', Number(ai.previousOwners) > 2 ? 'eval-red' : '') : '') +
+          (ai ? evalInfo('Times sold before auction', ai.timesSoldBeforeAuction != null ? String(ai.timesSoldBeforeAuction) : '?', Number(ai.timesSoldBeforeAuction) >= 2 ? 'eval-red' : '') : '') +
+          (ai ? evalInfo('Accident records', ai.accidentRecords != null ? String(ai.accidentRecords) : '?', Number(ai.accidentRecords) > 0 ? 'eval-red' : '') : '') +
+          evalInfo('Parts to change', parts.length ? String(parts.length) : (ai ? '0' : '?'), '') +
+          (demand != null ? evalInfo('Demand score', demand + '/10', '') : '') +
+          evalInfo('VIN', vin ? escapeHtml(vin) : '', vin.indexOf('*') !== -1 ? 'eval-red' : '') +
+          evalInfo('Stock #', escapeHtml(car.stockNum || '')) +
+          '</div></div>';
+      }
+
+      function renderEvaluation(car, r) {
+        var body = '';
+        if (r.error) body += '<div class="eval-error">' + escapeHtml(r.error) + '</div>';
+        var ai = r.ai && !r.ai.error && !r.ai.parseError ? r.ai : null;
+        if (r.ai && r.ai.parseError) body += '<div class="eval-error">AI reply could not be parsed.</div>';
+        else if (r.ai && r.ai.error) body += '<div class="eval-error">' + escapeHtml(r.ai.error) + '</div>';
+
+        body += renderVehicleInfo(car, r, ai);
+
+        var parts = ai && Array.isArray(ai.partsToChange) && ai.partsToChange.length
+          ? ai.partsToChange
+          : (r.damage && r.damage.ok ? r.damage.partsToChange : []);
+
+        if (ai && Array.isArray(ai.salesHistory) && ai.salesHistory.length) {
+          body += '<div class="eval-section"><h4>Sales / ownership history (before auction date)</h4><ul class="eval-list">' +
+            ai.salesHistory.map(function (s) {
+              return '<li>' + escapeHtml((s.date || '') + (s.date && s.event ? ' — ' : '') + (s.event || '')) + '</li>';
+            }).join('') + '</ul></div>';
+        }
+        if (ai && Array.isArray(ai.redFlags) && ai.redFlags.length) {
+          body += '<div class="eval-section"><h4>Red flags</h4><ul class="eval-list eval-red">' +
+            ai.redFlags.filter(Boolean).map(function (f) { return '<li>' + escapeHtml(f) + '</li>'; }).join('') + '</ul></div>';
+        }
+        if (parts.length) {
+          body += '<div class="eval-section"><h4>Parts to change</h4><ul class="eval-list">' +
+            parts.map(function (p) { return '<li>' + escapeHtml(p) + '</li>'; }).join('') + '</ul></div>';
+        }
+        if (ai && ai.structuralWork) {
+          body += '<div class="eval-section"><h4>Structural work</h4><div>' + escapeHtml(ai.structuralWork) + '</div></div>';
+        }
+        if (!r.carfax || !r.carfax.ok) {
+          body += '<div class="eval-section"><h4>Carfax</h4><div class="eval-error">' + escapeHtml((r.carfax && r.carfax.error) || 'No Carfax report') + '</div></div>';
+        }
+        var links = [];
+        if (car && car.vehicleDetailsUrl) links.push('<a href="' + escapeHtml(car.vehicleDetailsUrl) + '" target="_blank" rel="noopener noreferrer">IAA detail page</a>');
+        if (r.carfaxUrl) links.push('<a href="' + escapeHtml(r.carfaxUrl) + '" target="_blank" rel="noopener noreferrer">Full Carfax report</a>');
+        if (r.damageEstimatePdfUrl) links.push('<a href="/api/pdf?url=' + encodeURIComponent(r.damageEstimatePdfUrl) + '" target="_blank" rel="noopener noreferrer">Damage Estimate PDF</a>');
+        var vin = (r.vin || (car && car.vin) || '').trim();
+        if (vin && vin.indexOf('*') === -1) links.push('<a href="https://www.google.com/search?q=' + encodeURIComponent(vin) + '" target="_blank" rel="noopener noreferrer">Google this VIN</a>');
+        links.push('<a href="#" id="eval-rerun" title="Fetch a fresh Carfax + AI verdict (bypasses cache)">↻ Re-evaluate</a>');
+        body += '<div class="eval-links">' + links.join('') + '</div>';
+        if (r.tookMs) body += '<div style="margin-top:0.8rem;color:#94a3b8;font-size:0.75rem">Evaluated in ' + (r.tookMs / 1000).toFixed(1) + 's</div>';
+        return body;
+      }
+
+      function findCarByStock(stock) {
+        return lastFiltered.find(function (c) { return String(c.stockNum || '').trim() === stock; }) ||
+          cars.find(function (c) { return String(c.stockNum || '').trim() === stock; });
+      }
+
+      function openEvaluation(stock, btn, refresh) {
+        if (!stock || !evalModal || !evalModalBody) return;
+        var car = findCarByStock(stock);
+        if (evalModalTitle) evalModalTitle.textContent = 'Evaluation — ' + (car ? (car.title || [car.year, car.make, car.model].filter(Boolean).join(' ')) : stock);
+        evalModal.dataset.stock = stock;
+        evalModal.classList.remove('hidden');
+        // Cached result (client-side): show instantly, no scraping and no AI calls
+        if (!refresh && evalCache[stock]) {
+          evalModalBody.innerHTML = renderEvaluation(car, evalCache[stock]);
+          return;
+        }
+        evalModalBody.innerHTML = '<div class="eval-spinner">Evaluating (Carfax + damage report + AI)… this can take 1–2 minutes the first time.</div>';
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+        var finish = function () { if (btn) { btn.disabled = false; btn.textContent = 'Eval'; } };
+        fetch('/api/evaluate-car?stock=' + encodeURIComponent(stock) + (refresh ? '&refresh=1' : ''))
+          .then(function (res) {
+            if (!res.ok) return res.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('Request failed: ' + res.status)); });
+            return res.json();
+          })
+          .then(function (data) {
+            var r = data.result;
+            if (r && !r.error) evalCache[stock] = r;
+            return r;
+          })
+          .then(function (r) { evalModalBody.innerHTML = renderEvaluation(car, r || { error: 'No result' }); })
+          .catch(function (err) { evalModalBody.innerHTML = '<div class="eval-error">' + escapeHtml(err.message || 'Evaluation failed') + '</div>'; })
+          .then(finish);
+      }
+      // ---------- end per-car evaluation ----------
     })();
   </script>
 </body>

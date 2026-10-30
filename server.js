@@ -1,11 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { scrapeCars, getWarmStatus, getCookiesForPdf } = require('./scraper');
+const { scrapeCars, getWarmStatus, getCookiesForPdf, warmScrapePage } = require('./scraper');
 const { enrichCarsWithGeminiPrice } = require('./gemini');
 const { downloadPdf } = require('./damage-estimate');
+const { evaluateCarQueued } = require('./car-evaluator');
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 
 // Server-side memory storage for scraped cars
 let storedCars = [];
@@ -85,7 +86,7 @@ app.get('/api/cars', async (req, res) => {
   if (auctionFrom) options.auctionFrom = auctionFrom;
   console.log('[server] GET /api/cars - starting scrape...', locations.length ? 'locations: ' + locations.join(', ') : 'all', 'carDetail:', carDetail, 'kennyUpull:', kennyUpull, 'geminiPrice:', geminiPrice, 'damageEstimateVerify:', damageEstimateVerify);
   try {
-    let cars = await scrapeCars(options);
+    const cars = await scrapeCars(options);
     if (geminiPrice && cars.length > 0) {
       console.log('[server] Fetching average price (Gemini) for', cars.length, 'vehicles...');
       await enrichCarsWithGeminiPrice(cars);
@@ -110,6 +111,27 @@ app.get('/api/cars-from-memory', (req, res) => {
   res.json({ cars: storedCars, count: storedCars.length, timestamp: storedCarsTimestamp });
 });
 
+/** Per-car evaluation: Carfax VHR + Damage Estimate PDF + AI verdict. */
+app.get('/api/evaluate-car', async (req, res) => {
+  const stock = String(req.query.stock || '').trim();
+  const refresh = /^(1|true|yes)$/i.test(String(req.query.refresh || '').trim());
+  if (!stock) return res.status(400).json({ error: 'Missing stock parameter' });
+  const car = storedCars.find((c) => String(c.stockNum || '').trim() === stock);
+  if (!car) return res.status(404).json({ error: 'Car not found in memory. Run a scrape first.' });
+  console.log('[server] GET /api/evaluate-car - stock', stock, refresh ? '(refresh)' : '');
+  try {
+    const result = await evaluateCarQueued(car, { refresh });
+    res.json({ result });
+  } catch (err) {
+    console.error('[server] Evaluate error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+  console.log('[server] Warming scrape page in the background (IAA login + default filters)...');
+  warmScrapePage().catch((err) => {
+    console.error('[server] Warm page failed:', err.message, '– scrapes will launch their own browser.');
+  });
 });

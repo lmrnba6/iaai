@@ -229,6 +229,7 @@ async function enrichCarsWithDamageEstimateVerification(cars, options = {}) {
 
 module.exports = {
   downloadPdf,
+  extractTextFromPdf,
   verifyCarDamageEstimate,
   enrichCarsWithDamageEstimateVerification,
 };

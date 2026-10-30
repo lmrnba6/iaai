@@ -18,7 +18,10 @@ const SEARCH_URL = process.env.IAA_SEARCH_URL || 'https://ca.iaai.com/search';
 const IAA_BASE = (() => { try { return new URL(SEARCH_URL).origin; } catch { return 'https://ca.iaai.com'; } })();
 
 /** Default left-side filters applied when warming the scrape page at server start. Run/Drive not pre-checked – filter client-side instead. */
-const DEFAULT_LEFT_FILTERS = { locations: ['Ottawa'], runAndDrive: false };
+const DEFAULT_LEFT_FILTERS = {
+  locations: ['Ottawa', 'Toronto Oshawa', 'Toronto North', 'Toronto West', 'Montreal East', 'Montreal West', 'London', 'Hamilton'],
+  runAndDrive: false,
+};
 
 /** Kenny U-Pull inventory search: Ottawa + Gatineau, All Years */
 const KENNY_UPULL_BASE = 'https://kennyupull.com/auto-parts/our-inventory/';
@@ -167,6 +170,11 @@ async function getCookiesForPdf() {
     log('getCookiesForPdf failed:', err.message);
     return [];
   }
+}
+
+/** Shared browser/page context (for per-car evaluation tabs). Both may be null before warm-up completes. */
+function getSharedBrowser() {
+  return { browser: sharedBrowser, page: sharedPage };
 }
 
 /** Wait for the Kendo grid to finish loading (no loading mask). */
@@ -602,55 +610,332 @@ async function getHtmlWithBrowser(options = {}) {
     log('URL after left filters applied:', searchUrl);
     log('Filters applied. Getting page HTML...');
 
-    const html = await page.content();
-    const allHtml = [html];
+    // The site pages rows in an unstable order (8 branches merged without a sort key), so page
+    // boundaries shift between requests and each run would see a DIFFERENT slice of cars.
+    // Apply a unique sort (VIN / Stock #) first so every run pages through an identical order.
+    const applyStableSort = async () => {
+      return page.evaluate(() => new Promise((resolve) => {
+        const el = document.getElementById('runListKendoGrid');
+        if (!el) return resolve({ ok: false, reason: 'no-grid' });
+        const jq = window.jQuery || window.$;
+        let grid = null;
+        try { grid = jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+        try {
+          if (!grid && window.kendo && window.kendo.widgetInstance) {
+            grid = window.kendo.widgetInstance(jq ? jq(el) : el) || window.kendo.widgetInstance(el);
+          }
+        } catch (e) { /* ignore */ }
+        try { if (!grid && typeof el.kendoWidget === 'function') grid = el.kendoWidget(); } catch (e) { /* ignore */ }
+        if (!grid || !grid.dataSource || !grid.dataSource.sort) return resolve({ ok: false, reason: 'no-kendo-grid' });
+        const ds = grid.dataSource;
+        const fields = Array.from(el.querySelectorAll('thead th[data-field]'))
+          .map((th) => th.getAttribute('data-field'))
+          .filter(Boolean);
+        try {
+          if (Array.isArray(grid.columns)) {
+            for (const col of grid.columns) {
+              if (col && col.field && fields.indexOf(col.field) === -1) fields.push(col.field);
+            }
+          }
+        } catch (e) { /* ignore */ }
+        const field = fields.find((f) => /vin|stock|^id$|item|serial|^sno$/i.test(f || ''));
+        if (!field) {
+          return resolve({ ok: false, reason: 'no unique sort column (available: ' + (fields.join(', ') || 'none') + ')' });
+        }
+        const current = ds.sort();
+        if (current && current.length === 1 && current[0].field === field) return resolve({ ok: true, already: true, field: field });
+        let settled = false;
+        let reverting = false;
+        const finish = (ok, why) => {
+          if (settled) return;
+          settled = true;
+          try { grid.unbind('dataBound', onBound); } catch (e) { /* ignore */ }
+          resolve({ ok: ok, field: field, reason: why });
+        };
+        const onBound = () => {
+          if (reverting) { finish(false, 'empty-after-sort (reverted)'); return; }
+          const links = document.querySelectorAll('#runListKendoGrid a.stockLinkHeader').length;
+          if (links === 0) {
+            reverting = true;
+            try { ds.sort([]); } catch (e) { finish(false, 'empty-after-sort'); }
+            return;
+          }
+          finish(true);
+        };
+        grid.bind('dataBound', onBound);
+        try { ds.sort({ field: field, dir: 'asc' }); } catch (e) { finish(false, 'sort-call-failed: ' + e.message); return; }
+        setTimeout(() => finish(false, 'dataBound-timeout'), 15000);
+      }));
+    };
+    const sortRes = await applyStableSort();
+    if (sortRes.ok) {
+      log('Stable sort applied by', (sortRes.field || '') + ' asc – every run now pages through an identical order.');
+    } else {
+      log('⚠ Stable sort skipped (' + (sortRes.reason || 'unknown') + '). The site row order may vary between runs.');
+    }
 
-    // Detect pagination: Kendo pager has select with page options or .k-pager-numbers a[data-page]
-    const totalPages = await page.evaluate(() => {
-      const pager = document.querySelector('.k-pager-wrap[data-role="pager"], [data-role="pager"]');
-      if (!pager) return 1;
-      const select = pager.querySelector('select[aria-label="Page select"], select.k-dropdown');
-      if (select) {
-        const options = select.querySelectorAll('option');
-        let maxPage = 1;
-        options.forEach((opt) => {
-          const v = parseInt(opt.value, 10);
-          if (!isNaN(v) && v > maxPage) maxPage = v;
-        });
-        return maxPage;
+    // Make sure we start from page 1 (previous run may have left the shared page elsewhere)
+    await page.evaluate(() => new Promise((resolve) => {
+      const el = document.getElementById('runListKendoGrid');
+      const jq = window.jQuery || window.$;
+      let grid = null;
+      try { grid = el && jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+      if (!grid || !grid.dataSource || grid.dataSource.page() === 1) return resolve();
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try { grid.unbind('dataBound', onBound); } catch (e) { /* ignore */ }
+        resolve();
+      };
+      const onBound = () => finish();
+      grid.bind('dataBound', onBound);
+      try { grid.dataSource.page(1); } catch (e) { finish(); return; }
+      setTimeout(finish, 10000);
+    }));
+
+    // No stable sort available → unstable ordering shifts page boundaries between requests
+    // (the #1 cause of silently missed vehicles). Widen the page size instead: fewer/larger
+    // pages mean fewer boundary shifts; if the server accepts the full size, everything lands
+    // on a single page and nothing can be missed.
+    let pageSizeRestore = null;
+    if (!sortRes.ok) {
+      const expand = await page.evaluate(() => new Promise((resolve) => {
+        const el = document.getElementById('runListKendoGrid');
+        if (!el) return resolve(null);
+        const jq = window.jQuery || window.$;
+        let grid = null;
+        try { grid = jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+        try {
+          if (!grid && window.kendo && window.kendo.widgetInstance) {
+            grid = window.kendo.widgetInstance(jq ? jq(el) : el) || window.kendo.widgetInstance(el);
+          }
+        } catch (e) { /* ignore */ }
+        try { if (!grid && typeof el.kendoWidget === 'function') grid = el.kendoWidget(); } catch (e) { /* ignore */ }
+        if (!grid || !grid.dataSource || !grid.dataSource.pageSize || !grid.dataSource.total) return resolve(null);
+        const ds = grid.dataSource;
+        const total = ds.total();
+        if (!Number.isFinite(total) || total <= 0) return resolve(null);
+        const originalSize = ds.pageSize();
+        let settled = false;
+        let reverting = false;
+        let timeoutTimer = null;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          try { grid.unbind('dataBound', onBound); } catch (e) { /* ignore */ }
+          resolve(result);
+        };
+        const onBound = () => {
+          if (reverting) { finish(null); return; }
+          const links = document.querySelectorAll('#runListKendoGrid a.stockLinkHeader').length;
+          if (links >= total * 0.95) { finish({ singlePage: true, originalSize: originalSize }); return; }
+          if (links > originalSize) { finish({ singlePage: false, originalSize: originalSize }); return; }
+          reverting = true;
+          try { ds.pageSize(originalSize); } catch (e) { finish(null); }
+          setTimeout(() => finish(null), 8000);
+        };
+        grid.bind('dataBound', onBound);
+        try { ds.pageSize(total); } catch (e) { finish(null); return; }
+        timeoutTimer = setTimeout(() => {
+          reverting = true;
+          try { ds.pageSize(originalSize); } catch (e) { /* ignore */ }
+          setTimeout(() => finish(null), 8000);
+        }, 30000);
+      })).catch(() => null);
+
+      if (expand && expand.originalSize) {
+        pageSizeRestore = expand.originalSize;
+        log(expand.singlePage
+          ? 'Page size expanded — ALL vehicles now render on ONE page (no pagination boundaries).'
+          : 'Page size expanded — fewer pages means fewer ordering shifts between fetches.');
       }
-      const links = pager.querySelectorAll('.k-pager-numbers a.k-link[data-page], .k-pager-numbers .k-link[data-page], .k-pager-numbers [data-page]');
-      let max = 1;
-      links.forEach((el) => {
-        const v = parseInt(el.getAttribute('data-page'), 10);
-        if (!isNaN(v) && v > max) max = v;
-      });
-      return max;
-    }).catch(() => 1);
+    }
+
+    let html = await page.content();
+    let allHtml = [html];
+
+    // Detect pagination via the Kendo grid API when available (most reliable), else via the pager UI
+    const gridInfo = await page.evaluate(() => {
+      const el = document.getElementById('runListKendoGrid');
+      if (!el) return null;
+      const jq = window.jQuery || window.$;
+      let grid = null;
+      try { grid = jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+      try {
+        if (!grid && window.kendo && window.kendo.widgetInstance) {
+          grid = window.kendo.widgetInstance(jq ? jq(el) : el) || window.kendo.widgetInstance(el);
+        }
+      } catch (e) { /* ignore */ }
+      try { if (!grid && typeof el.kendoWidget === 'function') grid = el.kendoWidget(); } catch (e) { /* ignore */ }
+      if (!grid || !grid.dataSource) return null;
+      const ds = grid.dataSource;
+      return {
+        total: ds.total ? ds.total() : null,
+        totalPages: ds.totalPages ? ds.totalPages() : null,
+        pageSize: ds.pageSize ? ds.pageSize() : null,
+      };
+    }).catch(() => null);
+
+    const MAX_PAGES = 100;
+    let totalPages = 1;
+    if (gridInfo && gridInfo.totalPages > 1) {
+      totalPages = Math.min(gridInfo.totalPages, MAX_PAGES);
+      log('Kendo API pagination:', gridInfo.total, 'vehicles,', totalPages, 'pages of', gridInfo.pageSize, 'per page.');
+    } else {
+      const pagerDiag = await page.evaluate(() => {
+        const out = { selectFound: false, selectOptions: [], linkPages: [] };
+        const pager = document.querySelector('.k-pager-wrap[data-role="pager"]') || document.querySelector('[data-role="pager"]');
+        if (!pager) return out;
+        const select = pager.querySelector('select[aria-label="Page select"], select.k-dropdown');
+        if (select) {
+          out.selectFound = true;
+          out.selectOptions = Array.from(select.querySelectorAll('option')).map((o) => ({ value: o.value, text: (o.textContent || '').trim() }));
+        }
+        const links = pager.querySelectorAll('.k-pager-numbers a.k-link[data-page], .k-pager-numbers .k-link[data-page], .k-pager-numbers [data-page]');
+        out.linkPages = Array.from(links).map((el) => el.getAttribute('data-page'));
+        return out;
+      }).catch(() => ({ selectFound: false, selectOptions: [], linkPages: [] }));
+
+      if (pagerDiag.selectFound && Array.isArray(pagerDiag.selectOptions)) {
+        for (const opt of pagerDiag.selectOptions) {
+          const v = parseInt(opt.value, 10);
+          if (!isNaN(v) && v > totalPages) totalPages = v;
+        }
+      } else if (Array.isArray(pagerDiag.linkPages)) {
+        for (const raw of pagerDiag.linkPages) {
+          const v = parseInt(raw, 10);
+          if (!isNaN(v) && v > totalPages) totalPages = v;
+        }
+      }
+      if (totalPages > MAX_PAGES) totalPages = MAX_PAGES;
+      if (totalPages > 1) log('Pagination detected (pager UI):', totalPages, 'pages.');
+    }
+
+    const siteTotal = gridInfo && Number.isFinite(gridInfo.total) ? gridInfo.total : null;
+
+    // Switch the grid to page N via the Kendo API (same as the site's own pager). Resolves after dataBound or timeout.
+    const gotoKendoPage = async (p) => {
+      return page.evaluate((targetPage) => new Promise((resolve) => {
+        const el = document.getElementById('runListKendoGrid');
+        if (!el) return resolve({ ok: false, reason: 'no-grid' });
+        const jq = window.jQuery || window.$;
+        let grid = null;
+        try { grid = jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+        try {
+          if (!grid && window.kendo && window.kendo.widgetInstance) {
+            grid = window.kendo.widgetInstance(jq ? jq(el) : el) || window.kendo.widgetInstance(el);
+          }
+        } catch (e) { /* ignore */ }
+        try { if (!grid && typeof el.kendoWidget === 'function') grid = el.kendoWidget(); } catch (e) { /* ignore */ }
+        if (!grid || !grid.dataSource || !grid.dataSource.page) return resolve({ ok: false, reason: 'no-kendo-grid' });
+        const ds = grid.dataSource;
+        if (ds.page() === targetPage) return resolve({ ok: true, already: true });
+        let settled = false;
+        const finish = (ok, reason) => {
+          if (settled) return;
+          settled = true;
+          try { grid.unbind('dataBound', onDataBound); } catch (e) { /* ignore */ }
+          resolve({ ok, reason, page: ds.page ? ds.page() : null });
+        };
+        const onDataBound = () => finish(true);
+        grid.bind('dataBound', onDataBound);
+        try { ds.page(targetPage); } catch (e) { finish(false, 'page-call-failed: ' + e.message); return; }
+        setTimeout(() => finish(false, 'dataBound-timeout'), 20000);
+      }), p);
+    };
+
+    // Per-page mark (row count + first/last stock href): used to stop pagination on empty or identical pages
+    const pageMarks = [];
+    const markPage = async () => {
+      return page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('#runListKendoGrid a.stockLinkHeader'));
+        const hrefs = links.map((a) => a.getAttribute('href') || a.textContent.trim());
+        return {
+          rows: document.querySelectorAll('#runListKendoGrid tbody tr[role="row"]').length,
+          stockLinks: links.length,
+          firstHref: hrefs[0] || '',
+          lastHref: hrefs.length ? hrefs[hrefs.length - 1] : '',
+        };
+      }).catch(() => ({ rows: 0, stockLinks: 0, firstHref: '', lastHref: '' }));
+    };
+    pageMarks.push(await markPage());
 
     if (totalPages > 1) {
-      log('Pagination detected:', totalPages, 'pages. Fetching remaining pages...');
+      log('Fetching all', totalPages, 'pages...');
       const separator = searchUrl.includes('?') ? '&' : '?';
       for (let p = 2; p <= totalPages; p++) {
-        const pageUrl = searchUrl + separator + 'page=' + p;
-        log('Navigating to page', p, 'of', totalPages, '...');
+        log('Loading page', p, 'of', totalPages, '...');
         await delay(PAGINATION_PAGE_DELAY_MS);
         try {
-          await page.goto(pageUrl, { waitUntil: 'load', timeout: 20000 });
-          await waitForGridReady(page);
+          const nav = await gotoKendoPage(p);
+          let ok = nav.ok === true;
+          if (!ok) {
+            // Fallback: navigate with ?page=N and wait until the grid content actually changes
+            log('Kendo paging failed (' + (nav.reason || 'unknown') + '); falling back to URL navigation.');
+            const prev = pageMarks[pageMarks.length - 1];
+            const pageUrl = searchUrl + separator + 'page=' + p;
+            await page.goto(pageUrl, { waitUntil: 'load', timeout: 20000 });
+            await waitForGridReady(page);
+            try {
+              await page.waitForFunction((prevHref) => {
+                const a = document.querySelector('#runListKendoGrid a.stockLinkHeader');
+                const href = a ? (a.getAttribute('href') || a.textContent.trim()) : '';
+                return !!href && href !== prevHref;
+              }, { timeout: 10000 }, prev.firstHref);
+              ok = true;
+            } catch (e) {
+              ok = false;
+            }
+          }
           const pageHtml = await page.content();
+          const mark = await markPage();
+          if (!mark.stockLinks) {
+            log('⚠ Page', p, 'has 0 vehicles — stopping pagination. The pager total appears over-reported; later pages are empty.');
+            break;
+          }
+          if (!ok) {
+            log('⚠ Page', p, 'content did not change — paging is being ignored by the site. Stopping pagination.');
+            break;
+          }
+          const dup = pageMarks.find((other) =>
+            other.stockLinks && other.rows === mark.rows && other.firstHref === mark.firstHref && other.lastHref === mark.lastHref);
+          if (dup) {
+            const dupPage = pageMarks.indexOf(dup) + 1;
+            log('⚠ Page', p, 'is IDENTICAL to page', dupPage, '— paging is being ignored by the site. Stopping pagination.');
+            break;
+          }
+          pageMarks.push(mark);
           allHtml.push(pageHtml);
-          log('Page', p, 'HTML collected.');
+          log('Page', p, 'HTML collected (' + mark.stockLinks + ' vehicles).');
         } catch (err) {
           log('Failed to load page', p, ':', err.message);
         }
       }
+      // Leave the shared warm page back on page 1
+      await gotoKendoPage(1).catch(() => {});
       log('Collected HTML from', allHtml.length, 'pages.');
+    } else {
+      log('Pagination: only 1 page detected.');
+    }
+
+    // Restore the original page size on the shared warm page
+    if (pageSizeRestore) {
+      await page.evaluate((size) => new Promise((resolve) => {
+        const el = document.getElementById('runListKendoGrid');
+        const jq = window.jQuery || window.$;
+        let grid = null;
+        try { grid = el && jq ? jq(el).data('kendoGrid') : null; } catch (e) { /* ignore */ }
+        if (!grid || !grid.dataSource || !grid.dataSource.pageSize) return resolve();
+        try { grid.dataSource.pageSize(size); } catch (e) { /* ignore */ }
+        resolve();
+      }), pageSizeRestore).catch(() => {});
     }
 
     if (options.keepBrowserOpen) {
       log('Keeping browser open for detail-page fetches.');
-      return { html, allHtml, browser, page, usedShared };
+      return { html, allHtml, browser, page, usedShared, siteTotal };
     }
     if (!usedShared) await browser.close();
     return html;
@@ -658,6 +943,7 @@ async function getHtmlWithBrowser(options = {}) {
 
 /**
  * Parse vehicle list from HTML (same as before).
+ * @param {string} html
  * @returns {Array<{year, make, model, vin, stockNum, ...}>}
  */
 function parseCarsFromHtml(html) {
@@ -879,7 +1165,7 @@ async function enrichCarsWithKennyUpullLinks(cars) {
 /**
  * Parse IAA vehicle details page HTML for Air Bags, Keys Present, Restraint System, Primary/Secd/Other Damages, High Pre-Bid.
  * @param {string} html
- * @returns {{ airBagsDetail: string, restraintSystem: string, keysPresent: string, primaryDamage: string, secdDamage: string, otherDamages: string, declarations: string, highPrebid: string, damageEstimatePdfUrl: string }}
+ * @returns {{ airBagsDetail: string, restraintSystem: string, keysPresent: string, primaryDamage: string, secdDamage: string, otherDamages: string, declarations: string, highPrebid: string, damageEstimatePdfUrl: string, damageEstimateAmount: string, carfaxReportUrl: string }}
  */
 function parseDetailPageAirBagsAndRestraint(html) {
   const $ = cheerio.load(html);
@@ -931,6 +1217,10 @@ function parseDetailPageAirBagsAndRestraint(html) {
   tryDamageEstimate('#reportAndDownloadsListView');
   tryDamageEstimate('#vdp-reports');
   if (!damageEstimatePdfUrl || !damageEstimateAmount) tryDamageEstimate('body'); // fallback: reports may be in other container
+  // CARFAX Report link (free VHR provided by IAA on the detail page)
+  let carfaxReportUrl = '';
+  const carfaxHref = $('#reportAndDownloadsListView a[href*="vhr.carfax.ca"]').attr('href') || $('#vdp-reports a[href*="vhr.carfax.ca"]').attr('href') || $('a[href*="vhr.carfax.ca"]').attr('href') || '';
+  if (carfaxHref) carfaxReportUrl = carfaxHref.startsWith('http') ? carfaxHref : 'https://vhr.carfax.ca' + (carfaxHref.startsWith('/') ? '' : '/') + carfaxHref;
   // High Pre-Bid: in BID INFORMATION (main area or Pre-Bid popup). Match "High Pre-Bid" or "Current High Bid"; value often in .data-list__value or label.runlistPrebidRed/Green
   const highPreBidLabelRe = /High\s*Pre-?Bid|Current\s*High\s*Bid/i;
   const pickPrice = (text) => {
@@ -952,7 +1242,7 @@ function parseDetailPageAirBagsAndRestraint(html) {
       if (value) highPrebid = pickPrice(value);
     });
   });
-  return { airBagsDetail, restraintSystem, keysPresent, primaryDamage, secdDamage, otherDamages, declarations, highPrebid, damageEstimatePdfUrl, damageEstimateAmount };
+  return { airBagsDetail, restraintSystem, keysPresent, primaryDamage, secdDamage, otherDamages, declarations, highPrebid, damageEstimatePdfUrl, damageEstimateAmount, carfaxReportUrl };
 }
 
 /**
@@ -1009,10 +1299,11 @@ async function enrichCarsWithDetailPageData(cars, page) {
         data = typeof res.data === 'string' ? res.data : '';
       }
       const dataLen = data.length;
-      const { airBagsDetail, restraintSystem, keysPresent, primaryDamage, secdDamage, otherDamages, declarations, highPrebid, damageEstimatePdfUrl, damageEstimateAmount } = parseDetailPageAirBagsAndRestraint(data);
+      const { airBagsDetail, restraintSystem, keysPresent, primaryDamage, secdDamage, otherDamages, declarations, highPrebid, damageEstimatePdfUrl, damageEstimateAmount, carfaxReportUrl } = parseDetailPageAirBagsAndRestraint(data);
       car.airBagsDetail = airBagsDetail;
       car.declarations = declarations;
       car.damageEstimatePdfUrl = damageEstimatePdfUrl;
+      car.carfaxReportUrl = carfaxReportUrl;
       if (damageEstimateAmount) car.damageEstimate = damageEstimateAmount;
       car.restraintSystem = restraintSystem;
       car.keysPresent = keysPresent;
@@ -1038,6 +1329,7 @@ async function enrichCarsWithDetailPageData(cars, page) {
 
 /**
  * Fetch the search page via browser and parse vehicles.
+ * @param {object} [options] - scrape options.
  * @returns {Promise<Array<{year, make, model, vin, stockNum, ..., kennyUpullLink?}>>}
  */
 async function scrapeCars(options = {}) {
@@ -1049,6 +1341,7 @@ async function scrapeCars(options = {}) {
   let browser = null;
   let page = null;
   let usedShared = false;
+  let siteTotal = null;
   try {
     const result = await getHtmlWithBrowser({
       locations,
@@ -1065,6 +1358,7 @@ async function scrapeCars(options = {}) {
       browser = result.browser;
       page = result.page;
       usedShared = result.usedShared === true;
+      siteTotal = Number.isFinite(result.siteTotal) ? result.siteTotal : null;
     }
   } catch (err) {
     log('Browser fetch failed:', err.message);
@@ -1093,35 +1387,41 @@ async function scrapeCars(options = {}) {
       cars = parseCarsFromHtml(html);
       log('Scrape finished. Vehicles extracted:', cars.length);
     }
+    if (siteTotal) {
+      log('Coverage:', cars.length, 'unique vehicles collected vs site total of', siteTotal + '.');
+      if (cars.length < siteTotal) {
+        log('⚠ COVERAGE WARNING: missing', siteTotal - cars.length, 'vehicles vs the site total — some pages were lost (check sort/pagination warnings above).');
+      }
+    }
     if (cars.length > 0) {
       const sampleVin = (cars[0].vin || '').trim();
       const loginHint = !sampleVin ? '' : /\*/.test(sampleVin) ? '(masked → not logged in)' : '(full → login OK)';
       log('Sample VIN:', sampleVin || '(none)', loginHint);
     }
 
-    const beforeBranchBrand = cars.length;
+    let stageIn = cars;
     cars = cars.filter((c) => carMatchesLocations(c, locations));
-    log('After branch (selected locations):', cars.length, 'of', beforeBranchBrand, 'vehicles.');
+    log('After branch (selected locations):', cars.length, 'of', stageIn.length, 'vehicles.');
 
     if (Array.isArray(options.makes) && options.makes.length > 0) {
       const allowedMakes = options.makes.map((m) => String(m).trim().toLowerCase()).filter(Boolean);
-      const beforeMakes = cars.length;
+      stageIn = cars;
       cars = cars.filter((c) => {
         const { make } = getYearAndMakeFromTitle(c);
         const makeLower = make.toLowerCase();
         const titleLower = (c.title || '').toLowerCase();
         return allowedMakes.some((m) => makeLower === m || titleLower.includes(m));
       });
-      log('After make filter (from title 2nd part: ' + options.makes.join(', ') + '):', cars.length, 'of', beforeMakes, 'vehicles.');
+      log('After make filter (from title 2nd part: ' + options.makes.join(', ') + '):', cars.length, 'of', stageIn.length, 'vehicles.');
     }
 
-    const beforeTrans = cars.length;
+    stageIn = cars;
     cars = cars.filter((c) => /auto/i.test((c.transmission || '').trim()));
-    log('After transmission=Auto only:', cars.length, 'of', beforeTrans, 'vehicles.');
+    log('After transmission=Auto only:', cars.length, 'of', stageIn.length, 'vehicles.');
 
-    const beforeMech = cars.length;
+    stageIn = cars;
     cars = cars.filter((c) => !hasMechanicalIssues(c));
-    if (beforeMech !== cars.length) log('After excluding mechanical/mech damage (e.g. Possible Mech):', cars.length, 'of', beforeMech, 'vehicles.');
+    if (stageIn.length !== cars.length) log('After excluding mechanical/mech damage (e.g. Possible Mech):', cars.length, 'of', stageIn.length, 'vehicles.');
 
     // Apply filter-panel criteria (date/year, km, engine range, auction date) BEFORE visiting any detail page
     const yearFrom = options.yearFrom != null ? String(options.yearFrom).trim() : '';
@@ -1139,6 +1439,7 @@ async function scrapeCars(options = {}) {
     if (yearFrom || yearTo || maxKm != null || engineMin != null || engineMax != null || auctionFromTs != null) {
       const beforePanel = cars.length;
       if (yearFrom) {
+        stageIn = cars;
         cars = cars.filter((c) => {
           const { year } = getYearAndMakeFromTitle(c);
           return year && year >= yearFrom;
@@ -1146,6 +1447,7 @@ async function scrapeCars(options = {}) {
         log('After year from (from title 1st part)', yearFrom + ':', cars.length, 'vehicles.');
       }
       if (yearTo) {
+        stageIn = cars;
         cars = cars.filter((c) => {
           const { year } = getYearAndMakeFromTitle(c);
           return year && year <= yearTo;
@@ -1153,6 +1455,7 @@ async function scrapeCars(options = {}) {
         log('After year to (from title 1st part)', yearTo + ':', cars.length, 'vehicles.');
       }
       if (maxKm != null) {
+        stageIn = cars;
         cars = cars.filter((c) => {
           const km = parseOdometerKm(c.odometer);
           return !Number.isNaN(km) && km <= maxKm;
@@ -1160,6 +1463,7 @@ async function scrapeCars(options = {}) {
         log('After max km', maxKm + ':', cars.length, 'vehicles.');
       }
       if (engineMin != null || engineMax != null) {
+        stageIn = cars;
         cars = cars.filter((c) => {
           const engineL = parseEngineL(c.engine);
           if (Number.isNaN(engineL)) return false;
@@ -1173,16 +1477,9 @@ async function scrapeCars(options = {}) {
         const filterD = new Date(auctionFromTs);
         const filterMonth = filterD.getMonth();
         const filterDay = filterD.getDate();
-        log('Auction date filter: exact date only (year ignored):', filterMonth + 1, '/', filterDay);
-        cars = cars.filter((c) => {
-          const raw = c.auctionDateTime || '';
-          const ts = parseAuctionDate(raw);
-          const pass = isMonthDayEqual(ts, filterMonth, filterDay);
-          const carDateStr = Number.isFinite(ts) ? (new Date(ts).getMonth() + 1) + '/' + new Date(ts).getDate() : '(invalid)';
-          log('  car', c.stockNum || c.title || '?', '| raw auctionDateTime=', JSON.stringify(raw), '| month/day=', carDateStr, '| pass=', pass);
-          return pass;
-        });
-        log('After auction date (exact match):', auctionFrom + ':', cars.length, 'vehicles.');
+        const auctionBefore = cars.length;
+        cars = cars.filter((c) => isMonthDayEqual(parseAuctionDate(c.auctionDateTime || ''), filterMonth, filterDay));
+        log('After auction date (exact match', (filterMonth + 1) + '/' + filterDay + '):', cars.length, 'of', auctionBefore, 'vehicles.');
       }
       log('Filter panel (date, km, engine, make, location, auction date) applied. Detail pages will be fetched for', cars.length, 'of', beforePanel, 'vehicles.');
     }
@@ -1285,4 +1582,9 @@ module.exports = {
   scrapeCars,
   getWarmStatus,
   getCookiesForPdf,
+  getSharedBrowser,
+  parseDetailPageAirBagsAndRestraint,
+  warmScrapePage,
+  loginIaa,
+  enrichCarsWithKennyUpullLinks,
 };
